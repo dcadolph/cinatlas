@@ -1,0 +1,16 @@
+# Binaries
+/cinatlas
+*.exe
+*.out
+
+# Test and coverage output
+*.test
+coverage.out
+
+# Editor and OS
+.idea/
+.vscode/
+.DS_Store
+
+# Environment
+.env
