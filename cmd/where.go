@@ -27,7 +27,8 @@ func runWhere(ctx context.Context, args []string) int {
 	log := logutil.New(opt.LogLevel)
 	ctx = logutil.WithLogger(ctx, log)
 
-	client, code := loadTMDB()
+	httpClient := newHTTPClient(opt)
+	client, code := loadTMDB(httpClient)
 	if code != CodeOK {
 		return code
 	}
@@ -37,10 +38,13 @@ func runWhere(ctx context.Context, args []string) int {
 	}
 	if movie.IMDBID == "" {
 		log.Warn("no imdb id for title, cannot resolve locations", "title", movie.Title)
-	} else if locs, err := wikidata.New().Locations(ctx, movie.IMDBID); err != nil {
-		log.Error("location lookup failed", "err", err)
 	} else {
-		movie.Locations = locs
+		finder := wikidata.New(wikidata.WithHTTPClient(httpClient))
+		if locs, err := finder.Locations(ctx, movie.IMDBID); err != nil {
+			log.Error("location lookup failed", "err", err)
+		} else {
+			movie.Locations = locs
+		}
 	}
 	result := whereResult(movie)
 	if opt.JSON {

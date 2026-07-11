@@ -46,6 +46,14 @@ cinatlas who "Stephen Tobolowsky"
 Output is human-readable text by default. Add `--json` for machine output, and
 `--pretty` to indent that JSON. Logs go to stderr, so data and diagnostics never mix.
 
+## Caching
+
+Successful responses are cached on disk for 24 hours, so repeat questions answer
+instantly and stay clear of API rate limits. The cache lives in the OS user cache
+directory under `cinatlas`. Use `--refresh` to bypass it, `CINATLAS_CACHE_DIR` to
+move it, and `CINATLAS_CACHE_TTL` (a Go duration like `1h` or `72h`) to change
+freshness.
+
 ## Data sources
 
 TMDB supplies cast, crew, filmography, and IMDB ids. Wikidata supplies filming

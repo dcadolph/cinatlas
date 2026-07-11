@@ -4,6 +4,7 @@ package cmd
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -29,6 +30,7 @@ Commands:
 Flags:
   --json              Output JSON instead of human-readable text
   --pretty            Indent JSON output (with --json)
+  --refresh           Bypass cached responses and refetch
   --log-level string  Stderr log level: debug, info, warn, error (default "info")
 
 Environment:
@@ -36,6 +38,8 @@ Environment:
   CINATLAS_JSON       Set to 1 or true to output JSON by default
   CINATLAS_PRETTY     Set to 1 or true to indent JSON output
   CINATLAS_LOG_LEVEL  Default stderr log level
+  CINATLAS_CACHE_DIR  Response cache directory (default: OS user cache dir)
+  CINATLAS_CACHE_TTL  Cache freshness window as a Go duration (default "24h")
 `
 
 // options holds flags common to every command.
@@ -44,6 +48,8 @@ type options struct {
 	JSON bool
 	// Pretty indents JSON output when true.
 	Pretty bool
+	// Refresh bypasses cached responses and refetches when true.
+	Refresh bool
 	// LogLevel sets stderr verbosity.
 	LogLevel string
 }
@@ -54,6 +60,7 @@ func newFlagSet(name string, opt *options) *flag.FlagSet {
 	fs.SetOutput(os.Stderr)
 	fs.BoolVar(&opt.JSON, "json", envBool("CINATLAS_JSON"), "output JSON instead of text")
 	fs.BoolVar(&opt.Pretty, "pretty", envBool("CINATLAS_PRETTY"), "indent JSON output")
+	fs.BoolVar(&opt.Refresh, "refresh", false, "bypass cached responses and refetch")
 	fs.StringVar(&opt.LogLevel, "log-level", envOr("CINATLAS_LOG_LEVEL", "info"), "stderr log level")
 	return fs
 }
@@ -69,10 +76,10 @@ func emit(v any, pretty bool) int {
 	return CodeOK
 }
 
-// loadTMDB builds a TMDB client from the environment key. On misconfiguration it
-// names the variable to set and returns a config code.
-func loadTMDB() (*tmdb.HTTPClient, int) {
-	client, err := tmdb.New(os.Getenv("CINATLAS_TMDB_KEY"))
+// loadTMDB builds a TMDB client from the environment key, using the given HTTP
+// client. On misconfiguration it names the variable to set and returns a config code.
+func loadTMDB(h *http.Client) (*tmdb.HTTPClient, int) {
+	client, err := tmdb.New(os.Getenv("CINATLAS_TMDB_KEY"), tmdb.WithHTTPClient(h))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "cinatlas: set CINATLAS_TMDB_KEY to a TMDB API key from themoviedb.org")
 		return nil, CodeConfig
