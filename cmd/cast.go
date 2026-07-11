@@ -8,6 +8,7 @@ import (
 
 	"github.com/dcadolph/cinatlas/internal/logutil"
 	"github.com/dcadolph/cinatlas/internal/model"
+	"github.com/dcadolph/cinatlas/internal/render"
 )
 
 // runCast reports the billed cast of a movie.
@@ -32,7 +33,12 @@ func runCast(ctx context.Context, args []string) int {
 	if code != CodeOK {
 		return code
 	}
-	return emit(castResult(movie), opt.Pretty)
+	result := castResult(movie)
+	if opt.JSON {
+		return emit(result, opt.Pretty)
+	}
+	render.Cast(os.Stdout, result)
+	return CodeOK
 }
 
 // castResult is the cast-focused view the cast command prints.

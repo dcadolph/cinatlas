@@ -43,8 +43,8 @@ cinatlas films "Denis Villeneuve"
 cinatlas who "Stephen Tobolowsky"
 ```
 
-Output is compact JSON on stdout. Add `--pretty` to indent it. Logs go to stderr,
-so data and diagnostics never mix.
+Output is human-readable text by default. Add `--json` for machine output, and
+`--pretty` to indent that JSON. Logs go to stderr, so data and diagnostics never mix.
 
 ## Data sources
 

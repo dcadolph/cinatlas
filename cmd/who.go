@@ -8,6 +8,7 @@ import (
 
 	"github.com/dcadolph/cinatlas/internal/logutil"
 	"github.com/dcadolph/cinatlas/internal/model"
+	"github.com/dcadolph/cinatlas/internal/render"
 )
 
 // topCredits caps how many filmography entries the who command shows.
@@ -35,7 +36,12 @@ func runWho(ctx context.Context, args []string) int {
 	if code != CodeOK {
 		return code
 	}
-	return emit(whoResult(person), opt.Pretty)
+	result := whoResult(person)
+	if opt.JSON {
+		return emit(result, opt.Pretty)
+	}
+	render.Person(os.Stdout, result)
+	return CodeOK
 }
 
 // whoResult is the identity-focused view the who command prints, capped to the

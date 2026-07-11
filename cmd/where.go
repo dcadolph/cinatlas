@@ -8,6 +8,7 @@ import (
 
 	"github.com/dcadolph/cinatlas/internal/logutil"
 	"github.com/dcadolph/cinatlas/internal/model"
+	"github.com/dcadolph/cinatlas/internal/render"
 	"github.com/dcadolph/cinatlas/internal/wikidata"
 )
 
@@ -41,7 +42,12 @@ func runWhere(ctx context.Context, args []string) int {
 	} else {
 		movie.Locations = locs
 	}
-	return emit(whereResult(movie), opt.Pretty)
+	result := whereResult(movie)
+	if opt.JSON {
+		return emit(result, opt.Pretty)
+	}
+	render.Where(os.Stdout, result)
+	return CodeOK
 }
 
 // whereResult is the location-focused view the where command prints.

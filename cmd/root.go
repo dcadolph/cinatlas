@@ -27,17 +27,21 @@ Commands:
   help     Show this help
 
 Flags:
-  --pretty            Indent JSON output
+  --json              Output JSON instead of human-readable text
+  --pretty            Indent JSON output (with --json)
   --log-level string  Stderr log level: debug, info, warn, error (default "info")
 
 Environment:
   CINATLAS_TMDB_KEY   TMDB API key, required for data commands
+  CINATLAS_JSON       Set to 1 or true to output JSON by default
   CINATLAS_PRETTY     Set to 1 or true to indent JSON output
   CINATLAS_LOG_LEVEL  Default stderr log level
 `
 
 // options holds flags common to every command.
 type options struct {
+	// JSON emits machine JSON instead of human-readable text when true.
+	JSON bool
 	// Pretty indents JSON output when true.
 	Pretty bool
 	// LogLevel sets stderr verbosity.
@@ -48,6 +52,7 @@ type options struct {
 func newFlagSet(name string, opt *options) *flag.FlagSet {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
+	fs.BoolVar(&opt.JSON, "json", envBool("CINATLAS_JSON"), "output JSON instead of text")
 	fs.BoolVar(&opt.Pretty, "pretty", envBool("CINATLAS_PRETTY"), "indent JSON output")
 	fs.StringVar(&opt.LogLevel, "log-level", envOr("CINATLAS_LOG_LEVEL", "info"), "stderr log level")
 	return fs

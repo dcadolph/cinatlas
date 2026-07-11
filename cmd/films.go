@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dcadolph/cinatlas/internal/logutil"
+	"github.com/dcadolph/cinatlas/internal/render"
 )
 
 // runFilms reports what else a person was in or directed.
@@ -31,5 +32,9 @@ func runFilms(ctx context.Context, args []string) int {
 	if code != CodeOK {
 		return code
 	}
-	return emit(person, opt.Pretty)
+	if opt.JSON {
+		return emit(person, opt.Pretty)
+	}
+	render.Person(os.Stdout, *person)
+	return CodeOK
 }
