@@ -30,6 +30,9 @@ var ErrRequest = errors.New("tmdb: request failed")
 // defaultBaseURL is the TMDB v3 API root.
 const defaultBaseURL = "https://api.themoviedb.org/3"
 
+// imageBaseURL is the TMDB image CDN root.
+const imageBaseURL = "https://image.tmdb.org/t/p/"
+
 // MovieSearcher finds movies matching a free-text query.
 type MovieSearcher interface {
 	SearchMovie(ctx context.Context, query string) ([]model.Movie, error)
@@ -122,7 +125,38 @@ func (c *HTTPClient) Movie(ctx context.Context, id int) (*model.Movie, error) {
 	movie.Director = dto.Credits.director()
 	movie.Cast = dto.Credits.castModels()
 	movie.IMDBURL = imdb.TitleURL(movie.IMDBID)
+	movie.IMDBLocationsURL = imdb.LocationsURL(movie.IMDBID)
 	return &movie, nil
+}
+
+// Trending returns this week's trending movies.
+func (c *HTTPClient) Trending(ctx context.Context) ([]model.Movie, error) {
+	var out struct {
+		Results []movieDTO `json:"results"`
+	}
+	if err := c.get(ctx, "/trending/movie/week", nil, &out); err != nil {
+		return nil, err
+	}
+	movies := make([]model.Movie, 0, len(out.Results))
+	for _, r := range out.Results {
+		movies = append(movies, r.toModel())
+	}
+	return movies, nil
+}
+
+// Recommendations returns movies recommended alongside the given movie.
+func (c *HTTPClient) Recommendations(ctx context.Context, id int) ([]model.Movie, error) {
+	var out struct {
+		Results []movieDTO `json:"results"`
+	}
+	if err := c.get(ctx, "/movie/"+strconv.Itoa(id)+"/recommendations", nil, &out); err != nil {
+		return nil, err
+	}
+	movies := make([]model.Movie, 0, len(out.Results))
+	for _, r := range out.Results {
+		movies = append(movies, r.toModel())
+	}
+	return movies, nil
 }
 
 // SearchPerson returns people matching the query, best match first.
@@ -190,20 +224,43 @@ func (c *HTTPClient) get(ctx context.Context, path string, q url.Values, out any
 
 // movieDTO is the subset of the TMDB movie payload cinatlas reads.
 type movieDTO struct {
-	ID          int        `json:"id"`
-	Title       string     `json:"title"`
-	ReleaseDate string     `json:"release_date"`
-	IMDBID      string     `json:"imdb_id"`
-	Credits     creditsDTO `json:"credits"`
+	ID           int        `json:"id"`
+	Title        string     `json:"title"`
+	ReleaseDate  string     `json:"release_date"`
+	IMDBID       string     `json:"imdb_id"`
+	Overview     string     `json:"overview"`
+	Tagline      string     `json:"tagline"`
+	Runtime      int        `json:"runtime"`
+	VoteAverage  float64    `json:"vote_average"`
+	Genres       []genreDTO `json:"genres"`
+	PosterPath   string     `json:"poster_path"`
+	BackdropPath string     `json:"backdrop_path"`
+	Credits      creditsDTO `json:"credits"`
+}
+
+// genreDTO is one genre tag on a movie.
+type genreDTO struct {
+	Name string `json:"name"`
 }
 
 // toModel converts the DTO to the shared movie type.
 func (m movieDTO) toModel() model.Movie {
+	var genres []string
+	for _, g := range m.Genres {
+		genres = append(genres, g.Name)
+	}
 	return model.Movie{
-		TMDBID: m.ID,
-		IMDBID: m.IMDBID,
-		Title:  m.Title,
-		Year:   parseYear(m.ReleaseDate),
+		TMDBID:      m.ID,
+		IMDBID:      m.IMDBID,
+		Title:       m.Title,
+		Year:        parseYear(m.ReleaseDate),
+		Overview:    m.Overview,
+		Tagline:     m.Tagline,
+		Runtime:     m.Runtime,
+		Rating:      m.VoteAverage,
+		Genres:      genres,
+		PosterURL:   imageURL("w342", m.PosterPath),
+		BackdropURL: imageURL("w1280", m.BackdropPath),
 	}
 }
 
@@ -231,6 +288,7 @@ func (c creditsDTO) castModels() []model.Person {
 			TMDBID:    m.ID,
 			Name:      m.Name,
 			Character: m.Character,
+			PhotoURL:  imageURL("w185", m.ProfilePath),
 		})
 	}
 	return people
@@ -238,9 +296,10 @@ func (c creditsDTO) castModels() []model.Person {
 
 // castDTO is one acting credit on a movie.
 type castDTO struct {
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	Character string `json:"character"`
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Character   string `json:"character"`
+	ProfilePath string `json:"profile_path"`
 }
 
 // crewDTO is one crew credit on a movie.
@@ -256,6 +315,7 @@ type personDTO struct {
 	Name            string           `json:"name"`
 	IMDBID          string           `json:"imdb_id"`
 	KnownFor        string           `json:"known_for_department"`
+	ProfilePath     string           `json:"profile_path"`
 	CombinedCredits combinedCredited `json:"combined_credits"`
 }
 
@@ -266,6 +326,7 @@ func (p personDTO) toModel() model.Person {
 		IMDBID:   p.IMDBID,
 		Name:     p.Name,
 		KnownFor: p.KnownFor,
+		PhotoURL: imageURL("w185", p.ProfilePath),
 	}
 }
 
@@ -275,14 +336,35 @@ type combinedCredited struct {
 	Crew []personCreditDTO `json:"crew"`
 }
 
-// creditModels flattens acting and crew credits into a year-sorted list.
+// creditModels flattens acting and crew credits into a year-sorted list,
+// merging repeat credits on the same title into one entry with joined roles.
 func (c combinedCredited) creditModels() []model.Credit {
 	credits := make([]model.Credit, 0, len(c.Cast)+len(c.Crew))
+	index := make(map[string]int, len(c.Cast)+len(c.Crew))
+	add := func(credit model.Credit) {
+		key := fmt.Sprintf("%d/%s", credit.TMDBID, credit.Title)
+		if at, ok := index[key]; ok {
+			merged := &credits[at]
+			if credit.Job != "" {
+				if merged.Job != "" {
+					merged.Job += ", " + credit.Job
+				} else {
+					merged.Job = credit.Job
+				}
+			}
+			if merged.Character == "" {
+				merged.Character = credit.Character
+			}
+			return
+		}
+		index[key] = len(credits)
+		credits = append(credits, credit)
+	}
 	for _, m := range c.Cast {
-		credits = append(credits, m.toModel())
+		add(m.toModel())
 	}
 	for _, m := range c.Crew {
-		credits = append(credits, m.toModel())
+		add(m.toModel())
 	}
 	sort.SliceStable(credits, func(i, j int) bool { return credits[i].Year > credits[j].Year })
 	return credits
@@ -290,12 +372,15 @@ func (c combinedCredited) creditModels() []model.Credit {
 
 // personCreditDTO is one filmography entry, movie or television.
 type personCreditDTO struct {
+	ID           int    `json:"id"`
+	MediaType    string `json:"media_type"`
 	Title        string `json:"title"`
 	Name         string `json:"name"`
 	Character    string `json:"character"`
 	Job          string `json:"job"`
 	ReleaseDate  string `json:"release_date"`
 	FirstAirDate string `json:"first_air_date"`
+	PosterPath   string `json:"poster_path"`
 }
 
 // toModel converts the credit DTO to the shared credit type, preferring the
@@ -310,11 +395,23 @@ func (p personCreditDTO) toModel() model.Credit {
 		date = p.FirstAirDate
 	}
 	return model.Credit{
+		TMDBID:    p.ID,
+		Kind:      p.MediaType,
 		Title:     title,
 		Year:      parseYear(date),
 		Character: p.Character,
 		Job:       p.Job,
+		PosterURL: imageURL("w342", p.PosterPath),
 	}
+}
+
+// imageURL builds a TMDB image CDN link for the given size and path, or an
+// empty string when the path is absent.
+func imageURL(size, path string) string {
+	if path == "" {
+		return ""
+	}
+	return imageBaseURL + size + path
 }
 
 // parseYear extracts the leading four-digit year from a date string.

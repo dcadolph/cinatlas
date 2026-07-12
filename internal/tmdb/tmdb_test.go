@@ -66,7 +66,11 @@ func TestMovie(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, map[string]string{
 		"/movie/1": `{"id":1,"title":"Heat","release_date":"1995-12-15","imdb_id":"tt0113277",` +
-			`"credits":{"cast":[{"id":10,"name":"Al Pacino","character":"Vincent Hanna"}],` +
+			`"tagline":"A Los Angeles crime saga.","runtime":170,"vote_average":7.9,` +
+			`"genres":[{"id":80,"name":"Crime"},{"id":18,"name":"Drama"}],` +
+			`"poster_path":"/heat.jpg","backdrop_path":"/heat-wide.jpg",` +
+			`"credits":{"cast":[{"id":10,"name":"Al Pacino","character":"Vincent Hanna",` +
+			`"profile_path":"/pacino.jpg"}],` +
 			`"crew":[{"id":20,"name":"Michael Mann","job":"Director"},` +
 			`{"id":21,"name":"Art Linson","job":"Producer"}]}}`,
 	})
@@ -75,13 +79,23 @@ func TestMovie(t *testing.T) {
 		t.Fatalf("Movie: %v", err)
 	}
 	want := &model.Movie{
-		TMDBID:   1,
-		IMDBID:   "tt0113277",
-		Title:    "Heat",
-		Year:     1995,
-		Director: "Michael Mann",
-		Cast:     []model.Person{{TMDBID: 10, Name: "Al Pacino", Character: "Vincent Hanna"}},
-		IMDBURL:  "https://www.imdb.com/title/tt0113277/",
+		TMDBID:      1,
+		IMDBID:      "tt0113277",
+		Title:       "Heat",
+		Year:        1995,
+		Director:    "Michael Mann",
+		Tagline:     "A Los Angeles crime saga.",
+		Runtime:     170,
+		Rating:      7.9,
+		Genres:      []string{"Crime", "Drama"},
+		PosterURL:   "https://image.tmdb.org/t/p/w342/heat.jpg",
+		BackdropURL: "https://image.tmdb.org/t/p/w1280/heat-wide.jpg",
+		Cast: []model.Person{{
+			TMDBID: 10, Name: "Al Pacino", Character: "Vincent Hanna",
+			PhotoURL: "https://image.tmdb.org/t/p/w185/pacino.jpg",
+		}},
+		IMDBURL:          "https://www.imdb.com/title/tt0113277/",
+		IMDBLocationsURL: "https://www.imdb.com/title/tt0113277/locations/",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Movie\n got %+v\nwant %+v", got, want)
@@ -94,8 +108,12 @@ func TestPerson(t *testing.T) {
 	srv := newServer(t, map[string]string{
 		"/person/5": `{"id":5,"name":"Michael Mann","imdb_id":"nm0000520",` +
 			`"known_for_department":"Directing","combined_credits":{"cast":[],` +
-			`"crew":[{"title":"Heat","job":"Director","release_date":"1995-12-15"},` +
-			`{"title":"Collateral","job":"Director","release_date":"2004-08-06"}]}}`,
+			`"crew":[{"id":1,"media_type":"movie","title":"Heat","job":"Director",` +
+			`"release_date":"1995-12-15"},` +
+			`{"id":1,"media_type":"movie","title":"Heat","job":"Screenplay",` +
+			`"release_date":"1995-12-15"},` +
+			`{"id":2,"media_type":"movie","title":"Collateral","job":"Director",` +
+			`"release_date":"2004-08-06"}]}}`,
 	})
 	got, err := newClient(t, srv).Person(context.Background(), 5)
 	if err != nil {
@@ -107,13 +125,50 @@ func TestPerson(t *testing.T) {
 		Name:     "Michael Mann",
 		KnownFor: "Directing",
 		Credits: []model.Credit{
-			{Title: "Collateral", Year: 2004, Job: "Director"},
-			{Title: "Heat", Year: 1995, Job: "Director"},
+			{TMDBID: 2, Kind: "movie", Title: "Collateral", Year: 2004, Job: "Director"},
+			{TMDBID: 1, Kind: "movie", Title: "Heat", Year: 1995, Job: "Director, Screenplay"},
 		},
 		IMDBURL: "https://www.imdb.com/name/nm0000520/",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Person\n got %+v\nwant %+v", got, want)
+	}
+}
+
+// TestTrending checks trending result mapping.
+func TestTrending(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, map[string]string{
+		"/trending/movie/week": `{"results":[{"id":7,"title":"Weekly Hit",` +
+			`"release_date":"2026-05-01","poster_path":"/hit.jpg"}]}`,
+	})
+	got, err := newClient(t, srv).Trending(context.Background())
+	if err != nil {
+		t.Fatalf("Trending: %v", err)
+	}
+	want := []model.Movie{{
+		TMDBID: 7, Title: "Weekly Hit", Year: 2026,
+		PosterURL: "https://image.tmdb.org/t/p/w342/hit.jpg",
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Trending\n got %+v\nwant %+v", got, want)
+	}
+}
+
+// TestRecommendations checks recommendation result mapping.
+func TestRecommendations(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, map[string]string{
+		"/movie/1/recommendations": `{"results":[{"id":9,"title":"Neighbor Film",` +
+			`"release_date":"2020-02-02"}]}`,
+	})
+	got, err := newClient(t, srv).Recommendations(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("Recommendations: %v", err)
+	}
+	want := []model.Movie{{TMDBID: 9, Title: "Neighbor Film", Year: 2020}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Recommendations\n got %+v\nwant %+v", got, want)
 	}
 }
 

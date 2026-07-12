@@ -33,6 +33,9 @@ func Where(w io.Writer, m model.Movie) {
 	writeTitle(w, m)
 	if len(m.Locations) == 0 {
 		fmt.Fprintln(w, "No filming locations found.")
+		if m.IMDBLocationsURL != "" {
+			fmt.Fprintf(w, "Check IMDB: %s\n", m.IMDBLocationsURL)
+		}
 	} else {
 		fmt.Fprintln(w, "Filmed in:")
 		for _, loc := range m.Locations {

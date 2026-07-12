@@ -13,12 +13,28 @@ type Movie struct {
 	Year int `json:"year,omitempty"`
 	// Director is the credited director name, empty when unknown.
 	Director string `json:"director,omitempty"`
+	// Overview is the one-paragraph synopsis, empty when unknown.
+	Overview string `json:"overview,omitempty"`
+	// Tagline is the marketing one-liner, empty when unknown.
+	Tagline string `json:"tagline,omitempty"`
+	// Runtime is the length in minutes, zero when unknown.
+	Runtime int `json:"runtime,omitempty"`
+	// Rating is the TMDB average vote from 0 to 10, zero when unknown.
+	Rating float64 `json:"rating,omitempty"`
+	// Genres lists the genre names.
+	Genres []string `json:"genres,omitempty"`
+	// PosterURL is the poster image, empty when none exists.
+	PosterURL string `json:"posterUrl,omitempty"`
+	// BackdropURL is the wide backdrop image, empty when none exists.
+	BackdropURL string `json:"backdropUrl,omitempty"`
 	// Cast lists the billed people in order.
 	Cast []Person `json:"cast,omitempty"`
 	// Locations lists resolved filming locations.
 	Locations []Location `json:"locations,omitempty"`
 	// IMDBURL is the deep link to the IMDB title page.
 	IMDBURL string `json:"imdbUrl,omitempty"`
+	// IMDBLocationsURL is the deep link to the IMDB filming-locations page.
+	IMDBLocationsURL string `json:"imdbLocationsUrl,omitempty"`
 }
 
 // Person is someone credited on a film.
@@ -33,6 +49,8 @@ type Person struct {
 	Character string `json:"character,omitempty"`
 	// KnownFor is a short note on why the person is recognizable.
 	KnownFor string `json:"knownFor,omitempty"`
+	// PhotoURL is the profile image, empty when none exists.
+	PhotoURL string `json:"photoUrl,omitempty"`
 	// Credits lists notable filmography entries.
 	Credits []Credit `json:"credits,omitempty"`
 	// IMDBURL is the deep link to the IMDB name page.
@@ -41,6 +59,10 @@ type Person struct {
 
 // Credit is one filmography entry for a person.
 type Credit struct {
+	// TMDBID is the Movie Database identifier of the title.
+	TMDBID int `json:"tmdbId,omitempty"`
+	// Kind is the credit medium, movie or tv, empty when unknown.
+	Kind string `json:"kind,omitempty"`
 	// Title is the film or show title.
 	Title string `json:"title"`
 	// Year is the release year, zero when unknown.
@@ -49,6 +71,8 @@ type Credit struct {
 	Character string `json:"character,omitempty"`
 	// Job is the crew role such as Director, empty for acting credits.
 	Job string `json:"job,omitempty"`
+	// PosterURL is the title poster, empty when none exists.
+	PosterURL string `json:"posterUrl,omitempty"`
 }
 
 // Location is a real-world filming location for a film.

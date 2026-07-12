@@ -30,6 +30,29 @@ func TestTitleURL(t *testing.T) {
 	}
 }
 
+// TestLocationsURL checks locations link building across valid and invalid ids.
+func TestLocationsURL(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		In         string
+		WantResult string
+	}{{ // Test 0: Standard title id.
+		In: "tt0113277", WantResult: "https://www.imdb.com/title/tt0113277/locations/",
+	}, { // Test 1: Empty id yields no link.
+		In: "", WantResult: "",
+	}, { // Test 2: Name id yields no link.
+		In: "nm0000123", WantResult: "",
+	}}
+	for testNum, test := range tests {
+		t.Run(fmt.Sprintf("test %d", testNum), func(t *testing.T) {
+			t.Parallel()
+			if got := LocationsURL(test.In); got != test.WantResult {
+				t.Errorf("LocationsURL(%q) = %q, want %q", test.In, got, test.WantResult)
+			}
+		})
+	}
+}
+
 // TestNameURL checks name link building across valid and invalid ids.
 func TestNameURL(t *testing.T) {
 	t.Parallel()

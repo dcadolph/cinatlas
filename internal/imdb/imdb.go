@@ -25,3 +25,13 @@ func NameURL(id string) string {
 	}
 	return baseURL + "/name/" + id + "/"
 }
+
+// LocationsURL returns the IMDB filming-locations page for a title id.
+// It returns an empty string when the id is blank or not a title id.
+func LocationsURL(id string) string {
+	title := TitleURL(id)
+	if title == "" {
+		return ""
+	}
+	return title + "locations/"
+}

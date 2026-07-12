@@ -41,7 +41,12 @@ cinatlas where "No Country for Old Men"
 cinatlas cast Heat
 cinatlas films "Denis Villeneuve"
 cinatlas who "Stephen Tobolowsky"
+cinatlas serve
 ```
+
+`serve` runs the cinatlas website locally on 127.0.0.1:8878 and opens it in your
+browser: one search box, poster and cast cards, filming locations on an embedded
+map. Same data, same cache, zero setup beyond the key.
 
 Output is human-readable text by default. Add `--json` for machine output, and
 `--pretty` to indent that JSON. Logs go to stderr, so data and diagnostics never mix.

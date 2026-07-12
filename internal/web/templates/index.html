@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cinatlas{{if .Movie}} — {{.Movie.Title}}{{else if .Person}} — {{.Person.Name}}{{end}}</title>
+<meta name="description" content="Quick movie facts: where it was filmed, who is in it, what else they made.">
+{{if .Movie}}
+<meta property="og:type" content="video.movie">
+<meta property="og:title" content="{{.Movie.Title}}{{if .Movie.Year}} ({{.Movie.Year}}){{end}} — cinatlas">
+<meta property="og:description" content="{{if .Movie.Overview}}{{.Movie.Overview}}{{else}}Where it was filmed, who is in it, and more.{{end}}">
+{{if .Movie.BackdropURL}}<meta property="og:image" content="{{.Movie.BackdropURL}}">{{else if .Movie.PosterURL}}<meta property="og:image" content="{{.Movie.PosterURL}}">{{end}}
+{{else if .Person}}
+<meta property="og:type" content="profile">
+<meta property="og:title" content="{{.Person.Name}} — cinatlas">
+<meta property="og:description" content="Filmography and quick facts.">
+{{if .Person.PhotoURL}}<meta property="og:image" content="{{.Person.PhotoURL}}">{{end}}
+{{else}}
+<meta property="og:type" content="website">
+<meta property="og:title" content="cinatlas — every frame has a place">
+<meta property="og:description" content="Quick movie facts: where it was filmed, who is in it, what else they made.">
+{{end}}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@1,500;1,600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="/">cin<span class="brand-dot">•</span>atlas</a>
+  <span class="tagline">every frame has a place</span>
+</header>
+<div class="marquee-lights" aria-hidden="true"></div>
+
+<main class="wrap">
+
+  <section class="search-panel">
+    <form class="search-form" action="/{{.Kind}}" method="get">
+      <input class="search-input" type="search" name="q" value="{{.Query}}"
+             placeholder="Try “Fargo”, “Heat”, or “Denis Villeneuve”…"
+             autocomplete="off" {{if not .Movie}}{{if not .Person}}autofocus{{end}}{{end}}>
+      <div class="search-row">
+        <div class="kind-pills">
+          <button class="pill{{if eq .Kind "movie"}} active{{end}}" type="submit" formaction="/movie"
+                  title="Search movies">Movie</button>
+          <button class="pill{{if eq .Kind "person"}} active{{end}}" type="submit" formaction="/person"
+                  title="Search actors and directors">Person</button>
+        </div>
+        <button class="btn-primary" type="submit" title="Search {{.Kind}}s">Search</button>
+      </div>
+    </form>
+  </section>
+
+  {{if .MovieAlternates}}
+  <section class="alternates">
+    <span class="alt-label">Not the one?</span>
+    {{range .MovieAlternates}}
+    <a class="alt-pill" href="/movie?id={{.TMDBID}}">
+      {{if .PosterURL}}<img class="alt-thumb" src="{{.PosterURL}}" alt="" loading="lazy">{{end}}
+      <span>{{.Title}}{{if .Year}} <em>{{.Year}}</em>{{end}}</span>
+    </a>
+    {{end}}
+  </section>
+  {{end}}
+
+  {{if .PersonAlternates}}
+  <section class="alternates">
+    <span class="alt-label">Not who you meant?</span>
+    {{range .PersonAlternates}}
+    <a class="alt-pill" href="/person?id={{.TMDBID}}">
+      {{if .PhotoURL}}<img class="alt-thumb" src="{{.PhotoURL}}" alt="" loading="lazy">{{end}}
+      <span>{{.Name}}</span>
+    </a>
+    {{end}}
+  </section>
+  {{end}}
+
+  {{if .Error}}
+  <section class="card notice">
+    <p>{{.Error}}</p>
+  </section>
+  {{end}}
+
+  {{with .Movie}}
+  <section class="result">
+    <div class="hero{{if not .BackdropURL}} hero-plain{{end}}"
+         {{if .BackdropURL}}style="background-image:url('{{.BackdropURL}}')"{{end}}>
+      <div class="hero-scrim">
+        <div class="hero-inner">
+          {{if .PosterURL}}
+          <img class="poster" src="{{.PosterURL}}" alt="{{.Title}} poster">
+          {{else}}
+          <div class="poster poster-empty">🎬</div>
+          {{end}}
+          <div class="hero-text">
+            <span class="eyebrow">Now showing</span>
+            <h1>{{.Title}}{{if .Year}} <span class="year">{{.Year}}</span>{{end}}</h1>
+            {{if .Tagline}}<p class="tagline-line">“{{.Tagline}}”</p>{{end}}
+            <div class="chips">
+              {{if .Rating}}<span class="chip chip-gold">★ {{rating .Rating}}</span>{{end}}
+              {{if .Runtime}}<span class="chip">{{runtime .Runtime}}</span>{{end}}
+              {{range .Genres}}<span class="chip">{{.}}</span>{{end}}
+            </div>
+            {{if .Director}}<p class="byline">Directed by <a href="/person?q={{.Director}}">{{.Director}}</a></p>{{end}}
+            {{if .IMDBURL}}<a class="btn-ghost" href="{{.IMDBURL}}">IMDB ↗</a>{{end}}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-body">
+      {{if .Overview}}<p class="overview">{{.Overview}}</p>{{end}}
+
+      <h2>On location</h2>
+      {{if .Locations}}
+      <div class="where-grid{{if not $.MapURL}} where-solo{{end}}">
+        <ul class="locations">
+          {{range .Locations}}
+          <li>
+            <span class="loc-name">{{.Name}}</span>
+            <span class="loc-links">
+              {{if .MapsURL}}<a href="{{.MapsURL}}">Maps ↗</a>{{end}}
+              {{if .EarthURL}}<a href="{{.EarthURL}}">Earth ↗</a>{{end}}
+            </span>
+          </li>
+          {{end}}
+        </ul>
+        {{if $.MapURL}}
+        <div class="map-frame">
+          <iframe src="{{$.MapURL}}" loading="lazy" title="Filming location map"></iframe>
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <p class="muted">No pins on the map for this one — yet.
+        {{if .IMDBLocationsURL}}<a href="{{.IMDBLocationsURL}}">Check IMDB filming locations ↗</a>{{end}}
+      </p>
+      {{end}}
+
+      {{if .Cast}}
+      <h2>The cast</h2>
+      <div class="shelf">
+        {{range .Cast}}
+        <a class="shelf-card" href="/person?id={{.TMDBID}}" title="{{.Name}}">
+          <div class="shelf-art">
+            {{if .PhotoURL}}
+            <img src="{{.PhotoURL}}" alt="{{.Name}}" loading="lazy">
+            {{else}}
+            <div class="art-empty">{{printf "%.1s" .Name}}</div>
+            {{end}}
+          </div>
+          <span class="shelf-title">{{.Name}}</span>
+          {{if .Character}}<span class="shelf-sub">{{.Character}}</span>{{end}}
+        </a>
+        {{end}}
+      </div>
+      {{end}}
+
+      {{if $.Similar}}
+      <h2>More like this</h2>
+      <div class="shelf">
+        {{range $.Similar}}
+        <a class="shelf-card" href="/movie?id={{.TMDBID}}" title="{{.Title}}">
+          <div class="shelf-art">
+            {{if .PosterURL}}
+            <img src="{{.PosterURL}}" alt="{{.Title}}" loading="lazy">
+            {{else}}
+            <div class="art-empty art-title">{{.Title}}</div>
+            {{end}}
+            {{if .Year}}<span class="year-badge">{{.Year}}</span>{{end}}
+          </div>
+          <span class="shelf-title">{{.Title}}</span>
+        </a>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+
+  {{with .Person}}
+  <section class="result">
+    <div class="hero hero-plain">
+      <div class="hero-scrim">
+        <div class="hero-inner">
+          {{if .PhotoURL}}
+          <img class="poster portrait" src="{{.PhotoURL}}" alt="{{.Name}}">
+          {{else}}
+          <div class="poster poster-empty">🎭</div>
+          {{end}}
+          <div class="hero-text">
+            <span class="eyebrow">The talent</span>
+            <h1>{{.Name}}</h1>
+            <div class="chips">
+              {{if .KnownFor}}<span class="chip chip-gold">{{.KnownFor}}</span>{{end}}
+            </div>
+            {{if .IMDBURL}}<a class="btn-ghost" href="{{.IMDBURL}}">IMDB ↗</a>{{end}}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-body">
+      {{if .Credits}}
+      <h2>The work</h2>
+      <div class="shelf">
+        {{range .Credits}}
+        {{if and .TMDBID (eq .Kind "movie")}}
+        <a class="shelf-card" href="/movie?id={{.TMDBID}}">
+        {{else}}
+        <div class="shelf-card shelf-flat">
+        {{end}}
+          <div class="shelf-art">
+            {{if .PosterURL}}
+            <img src="{{.PosterURL}}" alt="{{.Title}}" loading="lazy">
+            {{else}}
+            <div class="art-empty art-title">{{.Title}}</div>
+            {{end}}
+            {{if .Year}}<span class="year-badge">{{.Year}}</span>{{end}}
+          </div>
+          <span class="shelf-title">{{.Title}}</span>
+          {{if .Job}}<span class="shelf-sub">{{.Job}}</span>{{else if .Character}}<span class="shelf-sub">{{.Character}}</span>{{end}}
+        {{if and .TMDBID (eq .Kind "movie")}}</a>{{else}}</div>{{end}}
+        {{end}}
+      </div>
+      {{if $.MoreCredits}}<p class="muted">Showing recent work.{{if .IMDBURL}} <a href="{{.IMDBURL}}">Full filmography on IMDB ↗</a>{{end}}</p>{{end}}
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+
+  {{if and (not .Movie) (not .Person) (not .Error)}}
+  <section class="hero-empty">
+    <span class="eyebrow">Feature presentation</span>
+    <h1>Every frame<br>has a place.</h1>
+    <p class="hero-sub">Where was it filmed? Who is that? What else did they make?<br>
+       Ask the quick question. Get the quick answer.</p>
+    <div class="examples">
+      <a class="alt-pill" href="/movie?q=Fargo"><span>where was <strong>Fargo</strong> filmed</span></a>
+      <a class="alt-pill" href="/movie?q=Heat"><span>who is in <strong>Heat</strong></span></a>
+      <a class="alt-pill" href="/person?q=Denis+Villeneuve"><span>what has <strong>Villeneuve</strong> made</span></a>
+    </div>
+  </section>
+
+  {{if .Trending}}
+  <section class="trending">
+    <h2>Now trending</h2>
+    <div class="shelf">
+      {{range .Trending}}
+      <a class="shelf-card" href="/movie?id={{.TMDBID}}" title="{{.Title}}{{if .Year}} ({{.Year}}){{end}}">
+        <div class="shelf-art">
+          {{if .PosterURL}}
+          <img src="{{.PosterURL}}" alt="{{.Title}}" loading="lazy">
+          {{else}}
+          <div class="art-empty art-title">{{.Title}}</div>
+          {{end}}
+          {{if .Year}}<span class="year-badge">{{.Year}}</span>{{end}}
+        </div>
+        <span class="shelf-title">{{.Title}}</span>
+      </a>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+  {{end}}
+
+</main>
+
+<footer class="footer">
+  <p class="footer-motto">— cinatlas —</p>
+  <nav class="footer-links">
+    <a href="/">Search</a>
+    <a href="https://github.com/dcadolph/cinatlas">GitHub</a>
+    <a href="https://www.themoviedb.org/">TMDB</a>
+    <a href="https://www.wikidata.org/">Wikidata</a>
+  </nav>
+  <p>Data from TMDB and Wikidata, links out to IMDB.
+     This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+</footer>
+
+</body>
+</html>

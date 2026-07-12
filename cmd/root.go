@@ -24,6 +24,7 @@ Commands:
   cast     Who is in a movie
   films    What else a person was in or directed
   who      Identify a person and their notable roles
+  serve    Run the cinatlas website locally (--addr, default 127.0.0.1:8878)
   version  Print the build version
   help     Show this help
 
