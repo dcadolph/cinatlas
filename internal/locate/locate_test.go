@@ -3,6 +3,7 @@ package locate
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -122,12 +123,15 @@ func TestAt(t *testing.T) {
 			},
 		},
 	)
-	got, total, err := svc.At(context.Background(), "Los Angeles", 0, 2)
+	got, err := svc.At(context.Background(), "Los Angeles", AtQuery{Limit: 2})
 	if err != nil {
 		t.Fatalf("At: %v", err)
 	}
-	if total != 3 {
-		t.Errorf("At total = %d, want 3", total)
+	if got.Total != 3 {
+		t.Errorf("At total = %d, want 3", got.Total)
+	}
+	if wantDecades := []int{2000, 1990, 1960}; !reflect.DeepEqual(got.Decades, wantDecades) {
+		t.Errorf("At decades = %v, want %v", got.Decades, wantDecades)
 	}
 	want := []model.Movie{
 		{
@@ -140,8 +144,64 @@ func TestAt(t *testing.T) {
 			IMDBURL: "https://www.imdb.com/title/tt0000062/",
 		},
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("At\n got %+v\nwant %+v", got, want)
+	if !reflect.DeepEqual(got.Movies, want) {
+		t.Errorf("At\n got %+v\nwant %+v", got.Movies, want)
+	}
+}
+
+// TestAtSortsAndFilters checks orderings and the decade filter over titles.
+func TestAtSortsAndFilters(t *testing.T) {
+	t.Parallel()
+	newSvc := func() *Service {
+		return New(
+			fixedResolver(&wikidata.Result{}),
+			fixedPlaces([]wikidata.Film{
+				{Title: "Heat", Year: 1995, IMDBID: "tt1"},
+				{Title: "Obscure Film", Year: 1962, IMDBID: "tt2"},
+				{Title: "Beyond Limit", Year: 2000, IMDBID: "tt3"},
+			}),
+			fixedSections(nil, nil),
+			mapFinder{},
+		)
+	}
+	titles := func(movies []model.Movie) []string {
+		out := make([]string, 0, len(movies))
+		for _, m := range movies {
+			out = append(out, m.Title)
+		}
+		return out
+	}
+	tests := []struct {
+		Query      AtQuery
+		WantTitles []string
+		WantTotal  int
+	}{{ // Test 0: A to Z.
+		Query:      AtQuery{Limit: 9, Sort: SortAZ},
+		WantTitles: []string{"Beyond Limit", "Heat", "Obscure Film"}, WantTotal: 3,
+	}, { // Test 1: Oldest first.
+		Query:      AtQuery{Limit: 9, Sort: SortOld},
+		WantTitles: []string{"Obscure Film", "Heat", "Beyond Limit"}, WantTotal: 3,
+	}, { // Test 2: Newest first.
+		Query:      AtQuery{Limit: 9, Sort: SortNew},
+		WantTitles: []string{"Beyond Limit", "Heat", "Obscure Film"}, WantTotal: 3,
+	}, { // Test 3: Decade filter keeps the nineties.
+		Query:      AtQuery{Limit: 9, Decade: 1990},
+		WantTitles: []string{"Heat"}, WantTotal: 1,
+	}}
+	for testNum, test := range tests {
+		t.Run(fmt.Sprintf("test %d", testNum), func(t *testing.T) {
+			t.Parallel()
+			got, err := newSvc().At(context.Background(), "Los Angeles", test.Query)
+			if err != nil {
+				t.Fatalf("At: %v", err)
+			}
+			if got.Total != test.WantTotal {
+				t.Errorf("total = %d, want %d", got.Total, test.WantTotal)
+			}
+			if !reflect.DeepEqual(titles(got.Movies), test.WantTitles) {
+				t.Errorf("titles = %v, want %v", titles(got.Movies), test.WantTitles)
+			}
+		})
 	}
 }
 

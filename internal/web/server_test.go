@@ -30,18 +30,22 @@ func (fakeAtlas) Locate(_ context.Context, _ string) (*locate.Located, error) {
 	}, nil
 }
 
-// At returns one fixed film for any place, reporting a multi-page total.
-func (fakeAtlas) At(_ context.Context, place string, offset, _ int) ([]model.Movie, int, error) {
+// At returns one fixed film for any place, reporting a multi-page total and
+// decade facets.
+func (fakeAtlas) At(_ context.Context, place string, query locate.AtQuery) (*locate.AtResult, error) {
 	if place == "nowhere" {
-		return nil, 0, nil
+		return &locate.AtResult{}, nil
 	}
-	if offset > 0 {
-		return []model.Movie{{TMDBID: 2, Title: "Deep Cut", Year: 1962}}, 30, nil
+	result := &locate.AtResult{Total: 30, Decades: []int{1990, 1960}}
+	if query.Offset > 0 {
+		result.Movies = []model.Movie{{TMDBID: 2, Title: "Deep Cut", Year: 1962}}
+		return result, nil
 	}
-	return []model.Movie{{
+	result.Movies = []model.Movie{{
 		TMDBID: 1, Title: "Heat", Year: 1995,
 		PosterURL: "https://image.tmdb.org/t/p/w342/heat.jpg",
-	}}, 30, nil
+	}}
+	return result, nil
 }
 
 // newSite returns a test site backed by a fake TMDB and a fixed location finder.
@@ -183,11 +187,12 @@ func TestPages(t *testing.T) {
 			"maplibre-gl", "Los Angeles", "Venice Beach",
 			"back to the film", "/movie?id=1",
 		},
-	}, { // Test 8: Place page renders the filmed-here shelf with pagination.
+	}, { // Test 8: Place page renders the shelf, pagination, and controls.
 		Path: "/place?q=los+angeles", WantStatus: http.StatusOK,
 		WantContains: []string{
 			"Filmed here", "los angeles", "Heat", "/movie?id=1",
 			"30 films", "Page 1 of 2", "page=2", "Next",
+			"Most famous", "Title A to Z", "1990s", "1960s",
 		},
 	}, { // Test 8b: Deep pages serve their own slice with a previous link.
 		Path: "/place?q=los+angeles&page=2", WantStatus: http.StatusOK,
