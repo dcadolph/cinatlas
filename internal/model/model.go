@@ -42,6 +42,14 @@ type Movie struct {
 	Locations []Location `json:"locations,omitempty"`
 	// SetIn lists where the story takes place, distinct from where it filmed.
 	SetIn []Location `json:"setIn,omitempty"`
+	// Availability lists the ways to watch, by service and access kind, for
+	// WatchRegion. Empty when nothing is on record there.
+	Availability []Availability `json:"availability,omitempty"`
+	// WatchRegion is the two-letter country the availability applies to.
+	WatchRegion string `json:"watchRegion,omitempty"`
+	// WatchURL links the region's TMDB watch page, which lists every service
+	// and links out to JustWatch. Empty when the region has no data.
+	WatchURL string `json:"watchUrl,omitempty"`
 	// IMDBURL is the deep link to the IMDB title page.
 	IMDBURL string `json:"imdbUrl,omitempty"`
 	// IMDBLocationsURL is the deep link to the IMDB filming-locations page.
@@ -104,6 +112,85 @@ type Location struct {
 	MapsURL string `json:"mapsUrl,omitempty"`
 	// EarthURL links the place on Google Earth.
 	EarthURL string `json:"earthUrl,omitempty"`
+}
+
+// Access kinds rank how a service offers a title, cheapest for the viewer
+// first. Stream means included in a subscription; free and ads cost nothing;
+// rent and buy are transactional.
+const (
+	// AccessStream is included with a paid subscription to the service.
+	AccessStream = "stream"
+	// AccessFree is watchable at no cost with no ads.
+	AccessFree = "free"
+	// AccessAds is watchable at no cost with ads.
+	AccessAds = "ads"
+	// AccessRent is a time-limited paid rental.
+	AccessRent = "rent"
+	// AccessBuy is a paid purchase to keep.
+	AccessBuy = "buy"
+)
+
+// accessRank orders access kinds from best to worst for the viewer.
+var accessRank = map[string]int{
+	AccessStream: 0,
+	AccessFree:   1,
+	AccessAds:    2,
+	AccessRent:   3,
+	AccessBuy:    4,
+}
+
+// Availability is one way to watch a movie on one service in one region.
+type Availability struct {
+	// Provider is the streaming service name, such as Netflix or Hulu.
+	Provider string `json:"provider"`
+	// Kind is how the service offers it: stream, free, ads, rent, or buy.
+	Kind string `json:"kind"`
+	// LogoURL is the service logo image, empty when none exists.
+	LogoURL string `json:"logoUrl,omitempty"`
+	// Owned reports that the viewer subscribes to this service, set by
+	// TagOwnership. Only meaningful for stream, free, and ads access.
+	Owned bool `json:"owned,omitempty"`
+}
+
+// Included reports whether the access needs no extra payment beyond any
+// subscription the viewer already holds.
+func (a Availability) Included() bool {
+	return a.Kind == AccessStream || a.Kind == AccessFree || a.Kind == AccessAds
+}
+
+// SortAvailability orders entries in place by access kind, best for the viewer
+// first, then by provider name so output is stable.
+func SortAvailability(av []Availability) {
+	sort.SliceStable(av, func(i, j int) bool {
+		if accessRank[av[i].Kind] != accessRank[av[j].Kind] {
+			return accessRank[av[i].Kind] < accessRank[av[j].Kind]
+		}
+		return strings.ToLower(av[i].Provider) < strings.ToLower(av[j].Provider)
+	})
+}
+
+// TagOwnership marks each availability whose provider the viewer subscribes
+// to. A token matches a provider case-insensitively as a substring, so "prime"
+// matches "Amazon Prime Video". It returns how many entries were tagged.
+func TagOwnership(av []Availability, services ...string) int {
+	tokens := make([]string, 0, len(services))
+	for _, s := range services {
+		if s = strings.ToLower(strings.TrimSpace(s)); s != "" {
+			tokens = append(tokens, s)
+		}
+	}
+	tagged := 0
+	for i := range av {
+		name := strings.ToLower(av[i].Provider)
+		for _, t := range tokens {
+			if strings.Contains(name, t) {
+				av[i].Owned = true
+				tagged++
+				break
+			}
+		}
+	}
+	return tagged
 }
 
 // SortCredits orders credits in place: "az" by title, "new" and "old" by
