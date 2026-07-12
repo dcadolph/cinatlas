@@ -16,6 +16,8 @@ and Google Earth, and render on an interactive globe.
 1. What else was this person in? (person to filmography)
 2. Who is that, and where do I know them from? (name to person and notable roles)
 3. Where was this filmed? (title to real-world locations on a map)
+4. Where can I watch this right now? (title to the services carrying it in your
+   region, split into what a subscription already covers and what costs extra)
 
 Plus the natural adjacent: what else did this director make, who directed this, and
 what is worth watching next.
@@ -23,7 +25,6 @@ what is worth watching next.
 ## Non-goals
 
 - Not a tracker, watchlist, or social feed. Those exist and are crowded.
-- Not a streaming-availability finder.
 - Not a review aggregator. It reports facts and links out for the rest.
 
 ## Data sources
@@ -31,6 +32,7 @@ what is worth watching next.
 | Source | Role | Notes |
 |---|---|---|
 | TMDB | Cast, crew, filmography, posters, backdrops, trending, IMDB ids | Free key required |
+| TMDB watch/providers | Streaming availability by region and access kind, watch-page link | JustWatch-backed, appended to the movie call |
 | Wikidata | Filming locations (P915), settings (P840), countries (P495), coordinates (P625), Wikipedia sitelink | One SPARQL query per film |
 | Wikipedia | Street-level filming places mined from the article's filming section | Links with coordinates only |
 | IMDB | Outbound deep links: title, name, locations, full credits | No API used |
@@ -50,6 +52,29 @@ Locations are the moat, so they merge from tiers in `internal/locate`:
 Every location carries its source, shown in the UI. Zero-pin films link the IMDB
 locations page instead of dead-ending. Settings (P840) display separately as
 "Set in", never mixed with where the film shot.
+
+## Availability
+
+Availability answers "where can I watch this, truly, right now." TMDB's
+watch/providers data is JustWatch-backed and rides along on the movie call
+through append_to_response, so it costs no extra request. The response is keyed
+by country; the client keeps a region, default US, and reads only that entry.
+
+Each service is grouped by access kind, ordered best-for-the-viewer first:
+stream (included in a subscription), free, ads, rent, buy. The split between
+included and pay-extra is the point. A web search tells you a title is "on"
+a service; it rarely tells you whether your subscription already covers it.
+
+Personalization stays local. The viewer names the services they subscribe to
+and each matching provider is tagged as already theirs. A service token matches
+a provider name as a case-insensitive substring, so "prime" matches "Amazon
+Prime Video." On the CLI the list comes from a flag or environment variable; on
+the web it lives in browser localStorage and never leaves the device. Nothing
+about a viewer's subscriptions is stored server-side or sent anywhere.
+
+Availability rotates as licensing windows open and close, so it is the most
+perishable data cinatlas holds. The response cache TTL governs freshness; the
+region is always shown so a stale or wrong-country answer is never silent.
 
 ## Architecture
 
@@ -81,12 +106,15 @@ the browser, not a Go dependency.
 | `cinatlas where <title>` | Where it filmed and where it is set |
 | `cinatlas at <place>` | Which films shot at a place, reverse lookup |
 | `cinatlas cast <title>` | Who is in it and who directed |
+| `cinatlas watch <title>` | Where it streams now, split into included and pay-extra |
 | `cinatlas films <person>` | What else they made |
 | `cinatlas who <name>` | Who that is and their notable roles |
 | `cinatlas serve` | The website, locally |
 | `cinatlas version` | Build version |
 
-Global flags: `--json`, `--pretty`, `--refresh` to bypass the cache, `--log-level`.
+Global flags: `--json`, `--pretty`, `--refresh` to bypass the cache,
+`--region` for watch availability, `--services` to tag what you already have,
+`--log-level`.
 
 ## Website
 
@@ -95,8 +123,10 @@ Playfair italic taglines, marquee gold on deep black, film grain, marquee light
 strip, dark and light modes. Home is three poster walls: trending, in theaters,
 coming soon. Movie pages: backdrop hero, chips, top-billed cast shelf, locations
 with source badges and an OpenStreetMap embed, a full-page interactive globe with
-every pin, set-in chips, more-like-this row. Person pages: portrait hero and a
-poster-shelf filmography with merged roles.
+every pin, set-in chips, more-like-this row. A where-to-watch block leads the
+body: provider chips grouped into included and pay-extra, a "your services" box
+that greens the ones you already have, and a link to all watch options.
+Person pages: portrait hero and a poster-shelf filmography with merged roles.
 
 ## Configuration
 
@@ -105,6 +135,8 @@ poster-shelf filmography with merged roles.
 | TMDB API key | `CINATLAS_TMDB_KEY` | Yes |
 | Output mode | `CINATLAS_JSON` | No |
 | Output format | `CINATLAS_PRETTY` | No |
+| Watch region | `CINATLAS_REGION` | No |
+| Your services | `CINATLAS_SERVICES` | No |
 | Log level | `CINATLAS_LOG_LEVEL` | No |
 | Cache directory | `CINATLAS_CACHE_DIR` | No |
 | Cache freshness | `CINATLAS_CACHE_TTL` | No |
@@ -112,7 +144,7 @@ poster-shelf filmography with merged roles.
 ## Roadmap
 
 Done: CLI, disk cache, website with discovery walls, tiered location pipeline,
-interactive globe.
+interactive globe, watch availability with local personalization.
 
 Next: a phrase-to-title search layer is possible with an LLM at real cost. Public
 hosting waits until the data and look earn it; the domain cinatlas.com is already
