@@ -97,9 +97,71 @@ func TestMovie(t *testing.T) {
 		}},
 		IMDBURL:          "https://www.imdb.com/title/tt0113277/",
 		IMDBLocationsURL: "https://www.imdb.com/title/tt0113277/locations/",
+		WatchRegion:      "US",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Movie\n got %+v\nwant %+v", got, want)
+	}
+}
+
+// TestMovieWatchProviders checks watch availability mapping for the client
+// region, kind ordering, and the watch-page link, ignoring other regions.
+func TestMovieWatchProviders(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, map[string]string{
+		"/movie/1": `{"id":1,"title":"Heat","imdb_id":"tt0113277",` +
+			`"watch/providers":{"results":{` +
+			`"US":{"link":"https://justwatch.example/us",` +
+			`"buy":[{"provider_name":"Apple TV","logo_path":"/apple.jpg"}],` +
+			`"flatrate":[{"provider_name":"Max","logo_path":"/max.jpg"}],` +
+			`"rent":[{"provider_name":"Amazon Video","logo_path":"/amz.jpg"}]},` +
+			`"GB":{"link":"https://justwatch.example/gb",` +
+			`"flatrate":[{"provider_name":"Netflix","logo_path":"/nflx.jpg"}]}}}}`,
+	})
+	c, err := New("testkey", WithBaseURL(srv.URL), WithHTTPClient(srv.Client()), WithRegion("us"))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	got, err := c.Movie(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("Movie: %v", err)
+	}
+	// Stream sorts before rent before buy; GB is not mixed in.
+	wantAvail := []model.Availability{
+		{Provider: "Max", Kind: model.AccessStream, LogoURL: "https://image.tmdb.org/t/p/w92/max.jpg"},
+		{Provider: "Amazon Video", Kind: model.AccessRent, LogoURL: "https://image.tmdb.org/t/p/w92/amz.jpg"},
+		{Provider: "Apple TV", Kind: model.AccessBuy, LogoURL: "https://image.tmdb.org/t/p/w92/apple.jpg"},
+	}
+	if got.WatchRegion != "US" {
+		t.Errorf("WatchRegion = %q, want US", got.WatchRegion)
+	}
+	if got.WatchURL != "https://justwatch.example/us" {
+		t.Errorf("WatchURL = %q", got.WatchURL)
+	}
+	if !reflect.DeepEqual(got.Availability, wantAvail) {
+		t.Errorf("Availability\n got %+v\nwant %+v", got.Availability, wantAvail)
+	}
+}
+
+// TestMovieWatchProvidersMissingRegion checks a region with no data yields no
+// availability and no link.
+func TestMovieWatchProvidersMissingRegion(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, map[string]string{
+		"/movie/1": `{"id":1,"title":"Heat",` +
+			`"watch/providers":{"results":{"GB":{"link":"x","flatrate":[` +
+			`{"provider_name":"Netflix"}]}}}}`,
+	})
+	c, err := New("testkey", WithBaseURL(srv.URL), WithHTTPClient(srv.Client()), WithRegion("US"))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	got, err := c.Movie(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("Movie: %v", err)
+	}
+	if len(got.Availability) != 0 || got.WatchURL != "" {
+		t.Errorf("want empty availability, got %+v link %q", got.Availability, got.WatchURL)
 	}
 }
 
