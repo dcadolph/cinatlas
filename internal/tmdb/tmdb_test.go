@@ -112,7 +112,8 @@ func TestMovieWatchProviders(t *testing.T) {
 		"/movie/1": `{"id":1,"title":"Heat","imdb_id":"tt0113277",` +
 			`"watch/providers":{"results":{` +
 			`"US":{"link":"https://justwatch.example/us",` +
-			`"buy":[{"provider_name":"Apple TV","logo_path":"/apple.jpg"}],` +
+			`"buy":[{"provider_name":"Apple TV","logo_path":"/apple.jpg"},` +
+			`{"provider_name":"Amazon Video","logo_path":"/amz.jpg"}],` +
 			`"flatrate":[{"provider_name":"Max","logo_path":"/max.jpg"}],` +
 			`"rent":[{"provider_name":"Amazon Video","logo_path":"/amz.jpg"}]},` +
 			`"GB":{"link":"https://justwatch.example/gb",` +
@@ -126,11 +127,12 @@ func TestMovieWatchProviders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Movie: %v", err)
 	}
-	// Stream sorts before rent before buy; GB is not mixed in.
+	// Stream sorts before rent before buy; Amazon Video is one merged entry
+	// with both rent and buy, not two; GB is not mixed in.
 	wantAvail := []model.Availability{
-		{Provider: "Max", Kind: model.AccessStream, LogoURL: "https://image.tmdb.org/t/p/w92/max.jpg"},
-		{Provider: "Amazon Video", Kind: model.AccessRent, LogoURL: "https://image.tmdb.org/t/p/w92/amz.jpg"},
-		{Provider: "Apple TV", Kind: model.AccessBuy, LogoURL: "https://image.tmdb.org/t/p/w92/apple.jpg"},
+		{Provider: "Max", Kinds: []string{model.AccessStream}, LogoURL: "https://image.tmdb.org/t/p/w92/max.jpg"},
+		{Provider: "Amazon Video", Kinds: []string{model.AccessRent, model.AccessBuy}, LogoURL: "https://image.tmdb.org/t/p/w92/amz.jpg"},
+		{Provider: "Apple TV", Kinds: []string{model.AccessBuy}, LogoURL: "https://image.tmdb.org/t/p/w92/apple.jpg"},
 	}
 	if got.WatchRegion != "US" {
 		t.Errorf("WatchRegion = %q, want US", got.WatchRegion)
@@ -192,8 +194,8 @@ func TestPerson(t *testing.T) {
 		Name:     "Michael Mann",
 		KnownFor: "Directing",
 		Credits: []model.Credit{
-			{TMDBID: 1, Kind: "movie", Title: "Heat", Year: 1995, Job: "Director, Screenplay", Votes: 7000},
-			{TMDBID: 2, Kind: "movie", Title: "Collateral", Year: 2004, Job: "Director", Votes: 3000},
+			{TMDBID: 1, Kind: "movie", Title: "Heat", Year: 1995, Job: "Director, Screenplay", Votes: 7000, Crew: true},
+			{TMDBID: 2, Kind: "movie", Title: "Collateral", Year: 2004, Job: "Director", Votes: 3000, Crew: true},
 		},
 		IMDBURL: "https://www.imdb.com/name/nm0000520/",
 	}

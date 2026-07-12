@@ -58,8 +58,8 @@ func TestWatch(t *testing.T) {
 		Year:        1995,
 		WatchRegion: "US",
 		Availability: []model.Availability{
-			{Provider: "Max", Kind: model.AccessStream, Owned: true},
-			{Provider: "Apple TV", Kind: model.AccessBuy},
+			{Provider: "Max", Kinds: []string{model.AccessStream}, Owned: true},
+			{Provider: "Apple TV", Kinds: []string{model.AccessRent, model.AccessBuy}},
 		},
 		WatchURL: "https://watch/x",
 		IMDBURL:  "https://www.imdb.com/title/tt0113277/",
@@ -69,7 +69,7 @@ func TestWatch(t *testing.T) {
 		"Included:\n" +
 		"  Max (stream) ✓ you have this\n" +
 		"Rent or buy:\n" +
-		"  Apple TV (buy)\n" +
+		"  Apple TV (rent · buy)\n" +
 		"All watch options: https://watch/x\n" +
 		"IMDB: https://www.imdb.com/title/tt0113277/\n"
 	var b bytes.Buffer

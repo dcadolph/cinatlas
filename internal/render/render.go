@@ -72,7 +72,7 @@ func writeAvailability(w io.Writer, heading string, av []model.Availability, inc
 		if a.Owned {
 			mark = " ✓ you have this"
 		}
-		fmt.Fprintf(w, "  %s (%s)%s\n", a.Provider, a.Kind, mark)
+		fmt.Fprintf(w, "  %s (%s)%s\n", a.Provider, a.KindLabel(), mark)
 	}
 }
 

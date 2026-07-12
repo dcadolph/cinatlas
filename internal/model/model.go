@@ -92,6 +92,15 @@ type Credit struct {
 	Job string `json:"job,omitempty"`
 	// Votes counts TMDB votes on the title, a durable fame signal.
 	Votes int `json:"votes,omitempty"`
+	// Rating is the TMDB average vote from 0 to 10, zero when unknown.
+	Rating float64 `json:"rating,omitempty"`
+	// Genres lists the title's genre names.
+	Genres []string `json:"genres,omitempty"`
+	// Acting reports the person appeared in the title as cast.
+	Acting bool `json:"acting,omitempty"`
+	// Crew reports the person worked on the title as crew, such as directing
+	// or producing. A title can be both when they did both.
+	Crew bool `json:"crew,omitempty"`
 	// PosterURL is the title poster, empty when none exists.
 	PosterURL string `json:"posterUrl,omitempty"`
 }
@@ -139,31 +148,56 @@ var accessRank = map[string]int{
 	AccessBuy:    4,
 }
 
-// Availability is one way to watch a movie on one service in one region.
+// Availability is every way to watch a movie on one service in one region. A
+// service that both rents and sells a title is one entry with both kinds, not
+// two, so the same provider never appears twice.
 type Availability struct {
 	// Provider is the streaming service name, such as Netflix or Hulu.
 	Provider string `json:"provider"`
-	// Kind is how the service offers it: stream, free, ads, rent, or buy.
-	Kind string `json:"kind"`
+	// Kinds lists how the service offers it, best for the viewer first:
+	// stream, free, ads, rent, buy. Usually one; rent and buy often pair.
+	Kinds []string `json:"kinds"`
 	// LogoURL is the service logo image, empty when none exists.
 	LogoURL string `json:"logoUrl,omitempty"`
 	// Owned reports that the viewer subscribes to this service, set by
-	// TagOwnership. Only meaningful for stream, free, and ads access.
+	// TagOwnership. Only meaningful when an included kind is present.
 	Owned bool `json:"owned,omitempty"`
 }
 
-// Included reports whether the access needs no extra payment beyond any
-// subscription the viewer already holds.
+// Included reports whether any of the service's kinds need no extra payment
+// beyond a subscription the viewer already holds.
 func (a Availability) Included() bool {
-	return a.Kind == AccessStream || a.Kind == AccessFree || a.Kind == AccessAds
+	for _, k := range a.Kinds {
+		if k == AccessStream || k == AccessFree || k == AccessAds {
+			return true
+		}
+	}
+	return false
 }
 
-// SortAvailability orders entries in place by access kind, best for the viewer
-// first, then by provider name so output is stable.
+// KindLabel joins the kinds for display, such as "rent · buy".
+func (a Availability) KindLabel() string {
+	return strings.Join(a.Kinds, " · ")
+}
+
+// bestRank returns the rank of the service's best kind for the viewer, or a
+// large value when it has no known kind.
+func (a Availability) bestRank() int {
+	best := len(accessRank)
+	for _, k := range a.Kinds {
+		if r, ok := accessRank[k]; ok && r < best {
+			best = r
+		}
+	}
+	return best
+}
+
+// SortAvailability orders entries in place by their best access kind, best for
+// the viewer first, then by provider name so output is stable.
 func SortAvailability(av []Availability) {
 	sort.SliceStable(av, func(i, j int) bool {
-		if accessRank[av[i].Kind] != accessRank[av[j].Kind] {
-			return accessRank[av[i].Kind] < accessRank[av[j].Kind]
+		if ri, rj := av[i].bestRank(), av[j].bestRank(); ri != rj {
+			return ri < rj
 		}
 		return strings.ToLower(av[i].Provider) < strings.ToLower(av[j].Provider)
 	})
@@ -194,7 +228,8 @@ func TagOwnership(av []Availability, services ...string) int {
 }
 
 // SortCredits orders credits in place: "az" by title, "new" and "old" by
-// year with unknown years last, anything else keeps fame order.
+// year with unknown years last, "rating" by TMDB score, anything else keeps
+// fame order.
 func SortCredits(credits []Credit, order string) {
 	switch order {
 	case "az":
@@ -210,7 +245,74 @@ func SortCredits(credits []Credit, order string) {
 			}
 			return credits[i].Year < credits[j].Year
 		})
+	case "rating":
+		sort.SliceStable(credits, func(i, j int) bool { return credits[i].Rating > credits[j].Rating })
 	}
+}
+
+// FilterCreditsByMedia keeps credits of the given medium, "movie" or "tv", or
+// all credits when medium is empty.
+func FilterCreditsByMedia(credits []Credit, medium string) []Credit {
+	if medium != "movie" && medium != "tv" {
+		return credits
+	}
+	kept := make([]Credit, 0, len(credits))
+	for _, c := range credits {
+		if c.Kind == medium {
+			kept = append(kept, c)
+		}
+	}
+	return kept
+}
+
+// FilterCreditsByRole keeps acting or crew credits. "acting" keeps titles the
+// person appeared in; "crew" keeps titles they worked on behind the camera.
+// Any other value keeps all credits.
+func FilterCreditsByRole(credits []Credit, role string) []Credit {
+	if role != "acting" && role != "crew" {
+		return credits
+	}
+	kept := make([]Credit, 0, len(credits))
+	for _, c := range credits {
+		if (role == "acting" && c.Acting) || (role == "crew" && c.Crew) {
+			kept = append(kept, c)
+		}
+	}
+	return kept
+}
+
+// CreditGenres lists the genre names present across the credits, alphabetical.
+func CreditGenres(credits []Credit) []string {
+	seen := map[string]bool{}
+	for _, c := range credits {
+		for _, g := range c.Genres {
+			seen[g] = true
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for g := range seen {
+		out = append(out, g)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// FilterCreditsByGenre keeps credits carrying the given genre name, or all
+// credits when genre is empty.
+func FilterCreditsByGenre(credits []Credit, genre string) []Credit {
+	if genre == "" {
+		return credits
+	}
+	kept := make([]Credit, 0, len(credits))
+	for _, c := range credits {
+		for _, g := range c.Genres {
+			if g == genre {
+				kept = append(kept, c)
+				break
+			}
+		}
+	}
+	return kept
 }
 
 // CreditDecades lists the release decades present, newest first.
