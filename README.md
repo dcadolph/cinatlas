@@ -15,6 +15,14 @@ to coordinates and link straight to Google Maps and Google Earth.
 - What else a person was in or directed.
 - Who someone is and their notable roles.
 
+## Deploy
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/dcadolph/cinatlas)
+
+One click stands the site up on Render's free tier from the blueprint in this
+repo. Set `CINATLAS_TMDB_KEY` when prompted; add a custom domain in the service
+settings afterward.
+
 ## Install
 
 ```
