@@ -11,8 +11,11 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/dcadolph/cinatlas/internal/model"
 	"github.com/dcadolph/cinatlas/internal/tmdb"
@@ -28,8 +31,8 @@ const maxAlternates = 5
 // maxCredits caps filmography rows on a person page.
 const maxCredits = 30
 
-// maxTrending caps the trending wall on the home page.
-const maxTrending = 18
+// maxShelf caps each poster shelf on the home page.
+const maxShelf = 12
 
 // maxSimilar caps the more-like-this row on a movie page.
 const maxSimilar = 6
@@ -59,8 +62,9 @@ func New(client *tmdb.HTTPClient, finder wikidata.LocationFinder, log *slog.Logg
 		panic("web.New: logger required")
 	}
 	tmpl, err := template.New("index.html").Funcs(template.FuncMap{
-		"runtime": formatRuntime,
-		"rating":  formatRating,
+		"runtime":   formatRuntime,
+		"rating":    formatRating,
+		"shortDate": formatShortDate,
 	}).ParseFS(siteFS, "templates/index.html")
 	if err != nil {
 		return nil, fmt.Errorf("web: parse template: %w", err)
@@ -79,6 +83,15 @@ func formatRuntime(minutes int) string {
 // formatRating renders a 0 to 10 vote average with one decimal.
 func formatRating(rating float64) string {
 	return fmt.Sprintf("%.1f", rating)
+}
+
+// formatShortDate renders an ISO date as "Dec 19", falling back to the input.
+func formatShortDate(iso string) string {
+	t, err := time.Parse("2006-01-02", iso)
+	if err != nil {
+		return iso
+	}
+	return t.Format("Jan 2")
 }
 
 // Routes returns the site handler.
@@ -120,22 +133,56 @@ type pageData struct {
 	MapURL template.URL
 	// Trending is the home-page trending wall.
 	Trending []model.Movie
+	// NowPlaying is the home-page in-theaters shelf.
+	NowPlaying []model.Movie
+	// Upcoming is the home-page coming-soon shelf, soonest first.
+	Upcoming []model.Movie
 	// Similar is the more-like-this row under a movie.
 	Similar []model.Movie
 	// Error is a human-readable failure to show instead of a result.
 	Error string
 }
 
-// handleHome renders the search page over a trending wall.
+// handleHome renders the search page over trending, in-theaters, and
+// coming-soon walls, fetched concurrently and each best effort.
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	data := pageData{Kind: "movie"}
-	trending, err := s.tmdb.Trending(r.Context())
-	if err != nil {
-		s.log.Error("trending fetch failed", "err", err)
-	} else {
-		data.Trending = trending[:min(len(trending), maxTrending)]
+
+	var wg sync.WaitGroup
+	fetch := func(dst *[]model.Movie, name string, f func(context.Context) ([]model.Movie, error)) {
+		defer wg.Done()
+		movies, err := f(ctx)
+		if err != nil {
+			s.log.Error(name+" fetch failed", "err", err)
+			return
+		}
+		*dst = movies
 	}
+	wg.Add(3)
+	go fetch(&data.Trending, "trending", s.tmdb.Trending)
+	go fetch(&data.NowPlaying, "now playing", s.tmdb.NowPlaying)
+	go fetch(&data.Upcoming, "upcoming", s.tmdb.Upcoming)
+	wg.Wait()
+
+	data.Trending = data.Trending[:min(len(data.Trending), maxShelf)]
+	data.NowPlaying = data.NowPlaying[:min(len(data.NowPlaying), maxShelf)]
+	data.Upcoming = futureReleases(data.Upcoming, time.Now(), maxShelf)
 	s.render(w, http.StatusOK, data)
+}
+
+// futureReleases keeps movies releasing on or after today, soonest first,
+// capped at limit. ISO dates compare correctly as strings.
+func futureReleases(movies []model.Movie, now time.Time, limit int) []model.Movie {
+	today := now.Format("2006-01-02")
+	future := make([]model.Movie, 0, len(movies))
+	for _, m := range movies {
+		if m.ReleaseDate >= today {
+			future = append(future, m)
+		}
+	}
+	sort.SliceStable(future, func(i, j int) bool { return future[i].ReleaseDate < future[j].ReleaseDate })
+	return future[:min(len(future), limit)]
 }
 
 // handleMovie resolves a movie by id or query and renders its full card:

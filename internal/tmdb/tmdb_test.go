@@ -55,7 +55,7 @@ func TestSearchMovie(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchMovie: %v", err)
 	}
-	want := []model.Movie{{TMDBID: 1, Title: "Heat", Year: 1995}}
+	want := []model.Movie{{TMDBID: 1, Title: "Heat", Year: 1995, ReleaseDate: "1995-12-15"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("SearchMovie\n got %+v\nwant %+v", got, want)
 	}
@@ -83,6 +83,7 @@ func TestMovie(t *testing.T) {
 		IMDBID:      "tt0113277",
 		Title:       "Heat",
 		Year:        1995,
+		ReleaseDate: "1995-12-15",
 		Director:    "Michael Mann",
 		Tagline:     "A Los Angeles crime saga.",
 		Runtime:     170,
@@ -147,7 +148,7 @@ func TestTrending(t *testing.T) {
 		t.Fatalf("Trending: %v", err)
 	}
 	want := []model.Movie{{
-		TMDBID: 7, Title: "Weekly Hit", Year: 2026,
+		TMDBID: 7, Title: "Weekly Hit", Year: 2026, ReleaseDate: "2026-05-01",
 		PosterURL: "https://image.tmdb.org/t/p/w342/hit.jpg",
 	}}
 	if !reflect.DeepEqual(got, want) {
@@ -166,7 +167,7 @@ func TestRecommendations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Recommendations: %v", err)
 	}
-	want := []model.Movie{{TMDBID: 9, Title: "Neighbor Film", Year: 2020}}
+	want := []model.Movie{{TMDBID: 9, Title: "Neighbor Film", Year: 2020, ReleaseDate: "2020-02-02"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Recommendations\n got %+v\nwant %+v", got, want)
 	}

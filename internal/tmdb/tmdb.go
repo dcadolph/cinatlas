@@ -131,25 +131,30 @@ func (c *HTTPClient) Movie(ctx context.Context, id int) (*model.Movie, error) {
 
 // Trending returns this week's trending movies.
 func (c *HTTPClient) Trending(ctx context.Context) ([]model.Movie, error) {
-	var out struct {
-		Results []movieDTO `json:"results"`
-	}
-	if err := c.get(ctx, "/trending/movie/week", nil, &out); err != nil {
-		return nil, err
-	}
-	movies := make([]model.Movie, 0, len(out.Results))
-	for _, r := range out.Results {
-		movies = append(movies, r.toModel())
-	}
-	return movies, nil
+	return c.movieList(ctx, "/trending/movie/week")
+}
+
+// NowPlaying returns movies currently in theaters.
+func (c *HTTPClient) NowPlaying(ctx context.Context) ([]model.Movie, error) {
+	return c.movieList(ctx, "/movie/now_playing")
+}
+
+// Upcoming returns movies with upcoming releases.
+func (c *HTTPClient) Upcoming(ctx context.Context) ([]model.Movie, error) {
+	return c.movieList(ctx, "/movie/upcoming")
 }
 
 // Recommendations returns movies recommended alongside the given movie.
 func (c *HTTPClient) Recommendations(ctx context.Context, id int) ([]model.Movie, error) {
+	return c.movieList(ctx, "/movie/"+strconv.Itoa(id)+"/recommendations")
+}
+
+// movieList fetches a movie list endpoint and maps the results in order.
+func (c *HTTPClient) movieList(ctx context.Context, path string) ([]model.Movie, error) {
 	var out struct {
 		Results []movieDTO `json:"results"`
 	}
-	if err := c.get(ctx, "/movie/"+strconv.Itoa(id)+"/recommendations", nil, &out); err != nil {
+	if err := c.get(ctx, path, nil, &out); err != nil {
 		return nil, err
 	}
 	movies := make([]model.Movie, 0, len(out.Results))
@@ -254,6 +259,7 @@ func (m movieDTO) toModel() model.Movie {
 		IMDBID:      m.IMDBID,
 		Title:       m.Title,
 		Year:        parseYear(m.ReleaseDate),
+		ReleaseDate: m.ReleaseDate,
 		Overview:    m.Overview,
 		Tagline:     m.Tagline,
 		Runtime:     m.Runtime,

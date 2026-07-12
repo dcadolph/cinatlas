@@ -2,11 +2,13 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dcadolph/cinatlas/internal/logutil"
 	"github.com/dcadolph/cinatlas/internal/model"
@@ -39,6 +41,15 @@ func newSite(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/trending/movie/week", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"results":[{"id":3,"title":"Trending Now",` +
 			`"release_date":"2026-04-04","poster_path":"/trend.jpg"}]}`))
+	})
+	mux.HandleFunc("/movie/now_playing", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"results":[{"id":6,"title":"Theater Feature",` +
+			`"release_date":"2026-06-06","poster_path":"/theater.jpg"}]}`))
+	})
+	mux.HandleFunc("/movie/upcoming", func(w http.ResponseWriter, r *http.Request) {
+		future := time.Now().AddDate(0, 1, 0).Format("2006-01-02")
+		_, _ = fmt.Fprintf(w, `{"results":[{"id":8,"title":"Future Film",`+
+			`"release_date":"%s","poster_path":"/future.jpg"}]}`, future)
 	})
 	mux.HandleFunc("/movie/1/recommendations", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"results":[{"id":4,"title":"Companion Piece",` +
@@ -98,11 +109,13 @@ func TestPages(t *testing.T) {
 		Path         string
 		WantStatus   int
 		WantContains []string
-	}{{ // Test 0: Home page renders the hero, search, and trending wall.
+	}{{ // Test 0: Home page renders the hero, search, and all three walls.
 		Path: "/", WantStatus: http.StatusOK,
 		WantContains: []string{
 			"cin", "atlas", "Ask the quick question",
 			"Now trending", "Trending Now", "image.tmdb.org/t/p/w342/trend.jpg",
+			"In theaters", "Theater Feature",
+			"Coming soon", "Future Film",
 		},
 	}, { // Test 1: Movie page renders hero, chips, cast, locations, map, similar, alternates.
 		Path: "/movie?q=heat", WantStatus: http.StatusOK,

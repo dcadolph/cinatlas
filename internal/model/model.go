@@ -11,6 +11,8 @@ type Movie struct {
 	Title string `json:"title"`
 	// Year is the release year, zero when unknown.
 	Year int `json:"year,omitempty"`
+	// ReleaseDate is the ISO release date, empty when unknown.
+	ReleaseDate string `json:"releaseDate,omitempty"`
 	// Director is the credited director name, empty when unknown.
 	Director string `json:"director,omitempty"`
 	// Overview is the one-paragraph synopsis, empty when unknown.

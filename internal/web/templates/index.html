@@ -264,6 +264,47 @@
     </div>
   </section>
   {{end}}
+
+  {{if .NowPlaying}}
+  <section class="trending">
+    <h2>In theaters</h2>
+    <div class="shelf">
+      {{range .NowPlaying}}
+      <a class="shelf-card" href="/movie?id={{.TMDBID}}" title="{{.Title}}{{if .Year}} ({{.Year}}){{end}}">
+        <div class="shelf-art">
+          {{if .PosterURL}}
+          <img src="{{.PosterURL}}" alt="{{.Title}}" loading="lazy">
+          {{else}}
+          <div class="art-empty art-title">{{.Title}}</div>
+          {{end}}
+        </div>
+        <span class="shelf-title">{{.Title}}</span>
+      </a>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+
+  {{if .Upcoming}}
+  <section class="trending">
+    <h2>Coming soon</h2>
+    <div class="shelf">
+      {{range .Upcoming}}
+      <a class="shelf-card" href="/movie?id={{.TMDBID}}" title="{{.Title}}{{if .ReleaseDate}} ({{shortDate .ReleaseDate}}){{end}}">
+        <div class="shelf-art">
+          {{if .PosterURL}}
+          <img src="{{.PosterURL}}" alt="{{.Title}}" loading="lazy">
+          {{else}}
+          <div class="art-empty art-title">{{.Title}}</div>
+          {{end}}
+          {{if .ReleaseDate}}<span class="year-badge">{{shortDate .ReleaseDate}}</span>{{end}}
+        </div>
+        <span class="shelf-title">{{.Title}}</span>
+      </a>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
   {{end}}
 
 </main>
