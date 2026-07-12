@@ -60,9 +60,11 @@ watch/providers data is JustWatch-backed and rides along on the movie call
 through append_to_response, so it costs no extra request. The response is keyed
 by country; the client keeps a region, default US, and reads only that entry.
 
-Each service is grouped by access kind, ordered best-for-the-viewer first:
-stream (included in a subscription), free, ads, rent, buy. The split between
-included and pay-extra is the point. A web search tells you a title is "on"
+Each service appears once. A provider that both rents and sells a title is one
+entry with both kinds merged and ordered best first, not two rows that read as
+duplicates. Services group by access kind, best-for-the-viewer first: stream
+(included in a subscription), free, ads, rent, buy. The split between included
+and pay-extra is the point. A web search tells you a title is "on"
 a service; it rarely tells you whether your subscription already covers it.
 
 Personalization stays local. The viewer names the services they subscribe to
@@ -126,7 +128,14 @@ with source badges and an OpenStreetMap embed, a full-page interactive globe wit
 every pin, set-in chips, more-like-this row. A where-to-watch block leads the
 body: provider chips grouped into included and pay-extra, a "your services" box
 that greens the ones you already have, and a link to all watch options.
-Person pages: portrait hero and a poster-shelf filmography with merged roles.
+Person pages: portrait hero and a poster-shelf filmography with merged roles,
+filterable by role (as actor versus as director or crew), medium (film or
+television), and genre, and sortable by fame, rating, year, or title. The
+role filter separates a person's acting from their directing and producing,
+which otherwise mix in one list.
+
+A menu in the top bar links search, the source, the design doc, and the
+upstream data sites: TMDB, IMDB, Wikidata, and JustWatch.
 
 ## Configuration
 
