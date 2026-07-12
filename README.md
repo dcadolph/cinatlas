@@ -12,6 +12,7 @@ to coordinates and link straight to Google Maps and Google Earth.
 
 - Where a movie was filmed, on a map.
 - Who is in a movie, and who directed it.
+- Where a movie is streaming right now, and which services you already pay for.
 - What else a person was in or directed.
 - Who someone is and their notable roles.
 
@@ -44,12 +45,21 @@ Settings, then API. A v3 key or a v4 read access token both work.
 export CINATLAS_TMDB_KEY=your_key_here
 ```
 
+For watch availability, set your country and the services you subscribe to once,
+and every `watch` lookup uses them:
+
+```
+export CINATLAS_REGION=US
+export CINATLAS_SERVICES="Netflix, Max, Amazon Prime"
+```
+
 ## Use
 
 ```
 cinatlas where "No Country for Old Men"
 cinatlas at "Monument Valley"
 cinatlas cast Heat
+cinatlas watch Dune --services "Max, Prime"
 cinatlas films "Denis Villeneuve"
 cinatlas who "Stephen Tobolowsky"
 cinatlas serve
@@ -58,6 +68,13 @@ cinatlas serve
 `at` searches the other direction: name a place, get the films with recorded
 locations there. Coverage mirrors Wikidata, so film hubs are rich and small
 towns can be empty.
+
+`watch` reports where a title streams now, split into what a subscription
+already covers and what costs extra to rent or buy. Set `--region` (default
+`US`) for your country and `--services` to the ones you subscribe to, and the
+output marks the services you already have. Availability comes from TMDB's
+JustWatch-backed data and rotates as licensing windows change, so the cache is
+worth refreshing here more than elsewhere.
 
 `serve` runs the cinatlas website locally on 127.0.0.1:8878 and opens it in your
 browser: one search box, poster and cast cards, filming locations on an embedded
@@ -87,9 +104,10 @@ On the website every movie gets an interactive globe of its pins: the
 
 ## Data sources
 
-TMDB supplies cast, crew, filmography, images, and IMDB ids. Wikidata supplies
-filming locations, settings, and coordinates. Wikipedia supplies street-level
-filming places. IMDB is a link target only.
+TMDB supplies cast, crew, filmography, images, IMDB ids, and JustWatch-backed
+streaming availability. Wikidata supplies filming locations, settings, and
+coordinates. Wikipedia supplies street-level filming places. IMDB is a link
+target only.
 
 ## Status
 
