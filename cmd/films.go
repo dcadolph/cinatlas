@@ -31,7 +31,7 @@ func runFilms(ctx context.Context, args []string) int {
 	}
 	ctx = logutil.WithLogger(ctx, logutil.New(opt.LogLevel))
 
-	client, code := loadTMDB(newHTTPClient(opt))
+	client, code := loadTMDB(newHTTPClient(opt), opt.Region)
 	if code != CodeOK {
 		return code
 	}
