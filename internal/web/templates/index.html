@@ -185,6 +185,50 @@
     <div class="result-body">
       {{if .Overview}}<p class="overview">{{.Overview}}</p>{{end}}
 
+      <h2>Where to watch{{if .WatchRegion}} <span class="watch-region">{{.WatchRegion}}</span>{{end}}</h2>
+      {{if .Availability}}
+      <div class="watch" data-watch>
+        <div class="watch-mine">
+          <label for="my-services">Your services</label>
+          <input type="text" id="my-services" placeholder="e.g. Hulu, Prime, Max"
+                 autocomplete="off" spellcheck="false">
+          <span class="watch-hint">Saved on this device. Green means you already have it.</span>
+        </div>
+        {{$included := false}}{{range .Availability}}{{if .Included}}{{$included = true}}{{end}}{{end}}
+        {{$paid := false}}{{range .Availability}}{{if not .Included}}{{$paid = true}}{{end}}{{end}}
+        {{if $included}}
+        <h3 class="watch-sub">Included in a subscription</h3>
+        <ul class="providers">
+          {{range .Availability}}{{if .Included}}
+          <li class="provider" data-provider="{{.Provider}}">
+            {{if .LogoURL}}<img src="{{.LogoURL}}" alt="" loading="lazy">{{end}}
+            <span class="provider-name">{{.Provider}}</span>
+            <span class="provider-kind">{{.Kind}}</span>
+            <span class="provider-owned">✓ you have this</span>
+          </li>
+          {{end}}{{end}}
+        </ul>
+        {{end}}
+        {{if $paid}}
+        <h3 class="watch-sub">Rent or buy</h3>
+        <ul class="providers">
+          {{range .Availability}}{{if not .Included}}
+          <li class="provider provider-paid" data-provider="{{.Provider}}">
+            {{if .LogoURL}}<img src="{{.LogoURL}}" alt="" loading="lazy">{{end}}
+            <span class="provider-name">{{.Provider}}</span>
+            <span class="provider-kind">{{.Kind}}</span>
+          </li>
+          {{end}}{{end}}
+        </ul>
+        {{end}}
+        {{if .WatchURL}}<a class="btn-ghost" href="{{.WatchURL}}">All watch options ↗</a>{{end}}
+      </div>
+      {{else}}
+      <p class="muted">Not streaming in {{if .WatchRegion}}{{.WatchRegion}}{{else}}your region{{end}} right now.
+        {{if .WatchURL}}<a href="{{.WatchURL}}">Check watch options ↗</a>{{end}}
+      </p>
+      {{end}}
+
       <h2>On location</h2>
       {{if .Locations}}
       <div class="where-grid{{if not $.MapURL}} where-solo{{end}}">
@@ -509,5 +553,6 @@
      This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
 </footer>
 
+<script src="/static/watch.js"></script>
 </body>
 </html>
