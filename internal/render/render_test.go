@@ -49,6 +49,54 @@ func TestWhere(t *testing.T) {
 	}
 }
 
+// TestWatch checks the availability view: included and pay-extra groups, the
+// owned mark, region, and the JustWatch link.
+func TestWatch(t *testing.T) {
+	t.Parallel()
+	m := model.Movie{
+		Title:       "Heat",
+		Year:        1995,
+		WatchRegion: "US",
+		Availability: []model.Availability{
+			{Provider: "Max", Kind: model.AccessStream, Owned: true},
+			{Provider: "Apple TV", Kind: model.AccessBuy},
+		},
+		WatchURL: "https://watch/x",
+		IMDBURL:  "https://www.imdb.com/title/tt0113277/",
+	}
+	want := "Heat (1995)\n" +
+		"Streaming in US:\n" +
+		"Included:\n" +
+		"  Max (stream) ✓ you have this\n" +
+		"Rent or buy:\n" +
+		"  Apple TV (buy)\n" +
+		"All watch options: https://watch/x\n" +
+		"IMDB: https://www.imdb.com/title/tt0113277/\n"
+	var b bytes.Buffer
+	Watch(&b, m)
+	if got := b.String(); got != want {
+		t.Errorf("Watch\n got %q\nwant %q", got, want)
+	}
+}
+
+// TestWatchNone checks the not-streaming path with a watch-options fallback.
+func TestWatchNone(t *testing.T) {
+	t.Parallel()
+	m := model.Movie{
+		Title:       "Obscure Film",
+		WatchRegion: "US",
+		WatchURL:    "https://watch/y",
+	}
+	want := "Obscure Film\n" +
+		"Not streaming in US right now.\n" +
+		"Check watch options: https://watch/y\n"
+	var b bytes.Buffer
+	Watch(&b, m)
+	if got := b.String(); got != want {
+		t.Errorf("WatchNone\n got %q\nwant %q", got, want)
+	}
+}
+
 // TestPerson checks the person view formatting.
 func TestPerson(t *testing.T) {
 	t.Parallel()

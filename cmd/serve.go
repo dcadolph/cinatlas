@@ -32,7 +32,7 @@ func runServe(ctx context.Context, args []string) int {
 	ctx = logutil.WithLogger(ctx, log)
 
 	httpClient := newHTTPClient(opt)
-	client, code := loadTMDB(httpClient)
+	client, code := loadTMDB(httpClient, opt.Region)
 	if code != CodeOK {
 		return code
 	}

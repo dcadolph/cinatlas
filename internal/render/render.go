@@ -28,6 +28,54 @@ func Cast(w io.Writer, m model.Movie) {
 	writeIMDB(w, m.IMDBURL)
 }
 
+// Watch writes where a movie streams now in its region, grouped by whether
+// access is included in a subscription or costs extra.
+func Watch(w io.Writer, m model.Movie) {
+	writeTitle(w, m)
+	region := m.WatchRegion
+	if region == "" {
+		region = "your region"
+	}
+	if len(m.Availability) == 0 {
+		fmt.Fprintf(w, "Not streaming in %s right now.\n", region)
+		if m.WatchURL != "" {
+			fmt.Fprintf(w, "Check watch options: %s\n", m.WatchURL)
+		}
+		writeIMDB(w, m.IMDBURL)
+		return
+	}
+	fmt.Fprintf(w, "Streaming in %s:\n", region)
+	writeAvailability(w, "Included", m.Availability, true)
+	writeAvailability(w, "Rent or buy", m.Availability, false)
+	if m.WatchURL != "" {
+		fmt.Fprintf(w, "All watch options: %s\n", m.WatchURL)
+	}
+	writeIMDB(w, m.IMDBURL)
+}
+
+// writeAvailability writes a heading and the availability entries matching the
+// included filter, marking services the viewer owns. It writes nothing when no
+// entry matches.
+func writeAvailability(w io.Writer, heading string, av []model.Availability, included bool) {
+	var lines []model.Availability
+	for _, a := range av {
+		if a.Included() == included {
+			lines = append(lines, a)
+		}
+	}
+	if len(lines) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "%s:\n", heading)
+	for _, a := range lines {
+		mark := ""
+		if a.Owned {
+			mark = " ✓ you have this"
+		}
+		fmt.Fprintf(w, "  %s (%s)%s\n", a.Provider, a.Kind, mark)
+	}
+}
+
 // Where writes a movie's filming locations and settings with map links.
 func Where(w io.Writer, m model.Movie) {
 	writeTitle(w, m)
