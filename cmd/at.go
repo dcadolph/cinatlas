@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dcadolph/cinatlas/internal/locate"
 	"github.com/dcadolph/cinatlas/internal/logutil"
 	"github.com/dcadolph/cinatlas/internal/render"
 )
@@ -18,6 +19,8 @@ func runAt(ctx context.Context, args []string) int {
 	var opt options
 	fs := newFlagSet("at", &opt)
 	limit := fs.Int("limit", defaultAtLimit, "max films to print, 0 for all")
+	sortOrder := fs.String("sort", "", "order: fame (default), az, new, old")
+	decade := fs.Int("decade", 0, "keep one release decade, such as 1990")
 	if err := fs.Parse(args); err != nil {
 		return CodeUsage
 	}
@@ -37,22 +40,26 @@ func runAt(ctx context.Context, args []string) int {
 	if want <= 0 {
 		want = int(^uint(0) >> 1)
 	}
-	movies, total, err := newLocator(httpClient, client).At(ctx, place, 0, want)
+	result, err := newLocator(httpClient, client).At(ctx, place, locate.AtQuery{
+		Limit:  want,
+		Sort:   *sortOrder,
+		Decade: *decade,
+	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "cinatlas at:", err)
 		return CodeError
 	}
-	if total == 0 {
+	if result.Total == 0 {
 		fmt.Fprintf(os.Stderr, "cinatlas: no films with recorded locations at %q\n", place)
 		return CodeNotFound
 	}
 	if opt.JSON {
-		return emit(movies, opt.Pretty)
+		return emit(result.Movies, opt.Pretty)
 	}
-	render.FilmsAt(os.Stdout, place, movies)
-	if len(movies) < total {
+	render.FilmsAt(os.Stdout, place, result.Movies)
+	if len(result.Movies) < result.Total {
 		fmt.Fprintf(os.Stderr, "cinatlas: showing %d of %d films, use --limit 0 for all\n",
-			len(movies), total)
+			len(result.Movies), result.Total)
 	}
 	return CodeOK
 }
