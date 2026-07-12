@@ -23,6 +23,7 @@ Commands:
   where    Where a movie was filmed
   at       Movies filmed at a place
   cast     Who is in a movie
+  watch    Where a movie is streaming right now
   films    What else a person was in or directed
   who      Identify a person and their notable roles
   serve    Run the cinatlas website locally (--addr, default 127.0.0.1:8878)
@@ -33,12 +34,16 @@ Flags:
   --json              Output JSON instead of human-readable text
   --pretty            Indent JSON output (with --json)
   --refresh           Bypass cached responses and refetch
+  --region string     Country for watch availability (default "US")
+  --services string   Your streaming services, comma-separated, to tag what you own
   --log-level string  Stderr log level: debug, info, warn, error (default "info")
 
 Environment:
   CINATLAS_TMDB_KEY   TMDB API key, required for data commands
   CINATLAS_JSON       Set to 1 or true to output JSON by default
   CINATLAS_PRETTY     Set to 1 or true to indent JSON output
+  CINATLAS_REGION     Default country for watch availability (default "US")
+  CINATLAS_SERVICES   Your streaming services, comma-separated
   CINATLAS_LOG_LEVEL  Default stderr log level
   CINATLAS_CACHE_DIR  Response cache directory (default: OS user cache dir)
   CINATLAS_CACHE_TTL  Cache freshness window as a Go duration (default "24h")
@@ -54,6 +59,11 @@ type options struct {
 	Refresh bool
 	// LogLevel sets stderr verbosity.
 	LogLevel string
+	// Region is the two-letter country for watch availability.
+	Region string
+	// Services is the comma-separated list of streaming services the viewer
+	// subscribes to, used to tag what they can already watch.
+	Services string
 }
 
 // newFlagSet returns a flag set preloaded with the common flags and env defaults.
@@ -64,6 +74,8 @@ func newFlagSet(name string, opt *options) *flag.FlagSet {
 	fs.BoolVar(&opt.Pretty, "pretty", envBool("CINATLAS_PRETTY"), "indent JSON output")
 	fs.BoolVar(&opt.Refresh, "refresh", false, "bypass cached responses and refetch")
 	fs.StringVar(&opt.LogLevel, "log-level", envOr("CINATLAS_LOG_LEVEL", "info"), "stderr log level")
+	fs.StringVar(&opt.Region, "region", envOr("CINATLAS_REGION", "US"), "country for watch availability")
+	fs.StringVar(&opt.Services, "services", os.Getenv("CINATLAS_SERVICES"), "your streaming services, comma-separated")
 	return fs
 }
 
@@ -79,9 +91,11 @@ func emit(v any, pretty bool) int {
 }
 
 // loadTMDB builds a TMDB client from the environment key, using the given HTTP
-// client. On misconfiguration it names the variable to set and returns a config code.
-func loadTMDB(h *http.Client) (*tmdb.HTTPClient, int) {
-	client, err := tmdb.New(os.Getenv("CINATLAS_TMDB_KEY"), tmdb.WithHTTPClient(h))
+// client and watch-availability region. On misconfiguration it names the
+// variable to set and returns a config code.
+func loadTMDB(h *http.Client, region string) (*tmdb.HTTPClient, int) {
+	client, err := tmdb.New(os.Getenv("CINATLAS_TMDB_KEY"),
+		tmdb.WithHTTPClient(h), tmdb.WithRegion(region))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "cinatlas: set CINATLAS_TMDB_KEY to a TMDB API key from themoviedb.org")
 		return nil, CodeConfig

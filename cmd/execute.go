@@ -20,6 +20,8 @@ func Execute(ctx context.Context, args []string) int {
 		return runAt(ctx, rest)
 	case "cast":
 		return runCast(ctx, rest)
+	case "watch":
+		return runWatch(ctx, rest)
 	case "films":
 		return runFilms(ctx, rest)
 	case "who":
