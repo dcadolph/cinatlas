@@ -108,26 +108,30 @@ func TestPerson(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, map[string]string{
 		"/person/5": `{"id":5,"name":"Michael Mann","imdb_id":"nm0000520",` +
-			`"known_for_department":"Directing","combined_credits":{"cast":[],` +
+			`"known_for_department":"Directing","combined_credits":{"cast":[` +
+			`{"id":7,"media_type":"tv","name":"Late Night Talk","character":"Self",` +
+			`"first_air_date":"2020-01-01","vote_count":40}],` +
 			`"crew":[{"id":1,"media_type":"movie","title":"Heat","job":"Director",` +
-			`"release_date":"1995-12-15"},` +
+			`"release_date":"1995-12-15","vote_count":7000},` +
 			`{"id":1,"media_type":"movie","title":"Heat","job":"Screenplay",` +
-			`"release_date":"1995-12-15"},` +
+			`"release_date":"1995-12-15","vote_count":7000},` +
 			`{"id":2,"media_type":"movie","title":"Collateral","job":"Director",` +
-			`"release_date":"2004-08-06"}]}}`,
+			`"release_date":"2004-08-06","vote_count":3000}]}}`,
 	})
 	got, err := newClient(t, srv).Person(context.Background(), 5)
 	if err != nil {
 		t.Fatalf("Person: %v", err)
 	}
+	// Fame orders Heat above the newer Collateral; the Self talk-show
+	// appearance is dropped entirely.
 	want := &model.Person{
 		TMDBID:   5,
 		IMDBID:   "nm0000520",
 		Name:     "Michael Mann",
 		KnownFor: "Directing",
 		Credits: []model.Credit{
-			{TMDBID: 2, Kind: "movie", Title: "Collateral", Year: 2004, Job: "Director"},
-			{TMDBID: 1, Kind: "movie", Title: "Heat", Year: 1995, Job: "Director, Screenplay"},
+			{TMDBID: 1, Kind: "movie", Title: "Heat", Year: 1995, Job: "Director, Screenplay", Votes: 7000},
+			{TMDBID: 2, Kind: "movie", Title: "Collateral", Year: 2004, Job: "Director", Votes: 3000},
 		},
 		IMDBURL: "https://www.imdb.com/name/nm0000520/",
 	}

@@ -101,7 +101,7 @@ func newSite(t *testing.T) *httptest.Server {
 		_, _ = w.Write([]byte(`{"id":5,"name":"Michael Mann","imdb_id":"nm0000520",` +
 			`"known_for_department":"Directing","combined_credits":{"cast":[],` +
 			`"crew":[{"id":1,"media_type":"movie","title":"Heat","job":"Director",` +
-			`"release_date":"1995-12-15","poster_path":"/heat.jpg"}]}}`))
+			`"release_date":"1995-12-15","poster_path":"/heat.jpg","vote_count":7000}]}}`))
 	})
 	backend := httptest.NewServer(mux)
 	t.Cleanup(backend.Close)
@@ -166,11 +166,13 @@ func TestPages(t *testing.T) {
 	}, { // Test 2: Movie page by id skips search.
 		Path: "/movie?id=1", WantStatus: http.StatusOK,
 		WantContains: []string{"Heat", "Al Pacino"},
-	}, { // Test 3: Person page renders a poster-shelf filmography with movie links.
+	}, { // Test 3: Person page renders a poster-shelf filmography with movie
+		// links and sort and decade controls.
 		Path: "/person?q=mann", WantStatus: http.StatusOK,
 		WantContains: []string{
 			"Michael Mann", "Directing", "Heat", "/movie?id=1", "Director",
 			"image.tmdb.org/t/p/w342/heat.jpg", "year-badge",
+			"Most famous", "All decades", "1990s",
 		},
 	}, { // Test 4: No match renders a friendly not-found page.
 		Path: "/movie?q=zzz", WantStatus: http.StatusNotFound,

@@ -423,8 +423,10 @@ type combinedCredited struct {
 	Crew []personCreditDTO `json:"crew"`
 }
 
-// creditModels flattens acting and crew credits into a year-sorted list,
-// merging repeat credits on the same title into one entry with joined roles.
+// creditModels flattens acting and crew credits into one list ordered by
+// fame, merging repeat credits on the same title into one entry with joined
+// roles. Self appearances on talk shows, documentaries, and archive footage
+// are dropped: they are not the person's work.
 func (c combinedCredited) creditModels() []model.Credit {
 	credits := make([]model.Credit, 0, len(c.Cast)+len(c.Crew))
 	index := make(map[string]int, len(c.Cast)+len(c.Crew))
@@ -448,26 +450,36 @@ func (c combinedCredited) creditModels() []model.Credit {
 		credits = append(credits, credit)
 	}
 	for _, m := range c.Cast {
+		if m.selfAppearance() {
+			continue
+		}
 		add(m.toModel())
 	}
 	for _, m := range c.Crew {
 		add(m.toModel())
 	}
-	sort.SliceStable(credits, func(i, j int) bool { return credits[i].Year > credits[j].Year })
+	sort.SliceStable(credits, func(i, j int) bool {
+		if credits[i].Votes != credits[j].Votes {
+			return credits[i].Votes > credits[j].Votes
+		}
+		return credits[i].Year > credits[j].Year
+	})
 	return credits
 }
 
 // personCreditDTO is one filmography entry, movie or television.
 type personCreditDTO struct {
-	ID           int    `json:"id"`
-	MediaType    string `json:"media_type"`
-	Title        string `json:"title"`
-	Name         string `json:"name"`
-	Character    string `json:"character"`
-	Job          string `json:"job"`
-	ReleaseDate  string `json:"release_date"`
-	FirstAirDate string `json:"first_air_date"`
-	PosterPath   string `json:"poster_path"`
+	ID           int     `json:"id"`
+	MediaType    string  `json:"media_type"`
+	Title        string  `json:"title"`
+	Name         string  `json:"name"`
+	Character    string  `json:"character"`
+	Job          string  `json:"job"`
+	ReleaseDate  string  `json:"release_date"`
+	FirstAirDate string  `json:"first_air_date"`
+	PosterPath   string  `json:"poster_path"`
+	VoteCount    int     `json:"vote_count"`
+	Popularity   float64 `json:"popularity"`
 }
 
 // toModel converts the credit DTO to the shared credit type, preferring the
@@ -488,8 +500,19 @@ func (p personCreditDTO) toModel() model.Credit {
 		Year:      parseYear(date),
 		Character: p.Character,
 		Job:       p.Job,
+		Votes:     p.VoteCount,
 		PosterURL: imageURL("w342", p.PosterPath),
 	}
+}
+
+// selfAppearance reports credits where the person appears as themselves:
+// talk shows, documentaries, award footage. They read as noise next to roles.
+func (p personCreditDTO) selfAppearance() bool {
+	c := strings.ToLower(strings.TrimSpace(p.Character))
+	return c == "self" || strings.HasPrefix(c, "self ") || strings.HasPrefix(c, "self,") ||
+		strings.HasPrefix(c, "self (") || strings.HasPrefix(c, "self -") ||
+		c == "himself" || c == "herself" || c == "themselves" ||
+		strings.Contains(c, "archive footage") || strings.Contains(c, "(archival)")
 }
 
 // imageURL builds a TMDB image CDN link for the given size and path, or an
