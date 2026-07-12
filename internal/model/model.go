@@ -66,8 +66,10 @@ type Person struct {
 	Name string `json:"name"`
 	// Character is the role played, set only in a cast context.
 	Character string `json:"character,omitempty"`
-	// KnownFor is a short note on why the person is recognizable.
+	// KnownFor is the department a person is known for, such as Acting.
 	KnownFor string `json:"knownFor,omitempty"`
+	// KnownTitle is a notable title the person is known for, empty when none.
+	KnownTitle string `json:"knownTitle,omitempty"`
 	// PhotoURL is the profile image, empty when none exists.
 	PhotoURL string `json:"photoUrl,omitempty"`
 	// Credits lists notable filmography entries.

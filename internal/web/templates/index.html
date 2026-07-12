@@ -113,8 +113,8 @@
   {{end}}
 
   {{define "movieShelf"}}
-  <section class="search-section">
-    <h2>Movies</h2>
+  <section class="search-section" data-section="movies">
+    <h2>Movies <span class="count">{{len .}}</span></h2>
     <div class="shelf">
       {{range .}}
       <a class="shelf-card" href="/movie?id={{.TMDBID}}" title="{{.Title}}{{if .Year}} ({{.Year}}){{end}}">
@@ -134,11 +134,12 @@
   {{end}}
 
   {{define "peopleShelf"}}
-  <section class="search-section">
-    <h2>People</h2>
+  <section class="search-section" data-section="people">
+    <h2>People <span class="count">{{len .}}</span></h2>
+    <div class="dept-filter" data-dept-filter></div>
     <div class="shelf">
       {{range .}}
-      <a class="shelf-card" href="/person?id={{.TMDBID}}" title="{{.Name}}">
+      <a class="shelf-card" href="/person?id={{.TMDBID}}" title="{{.Name}}" data-dept="{{.KnownFor}}">
         <div class="shelf-art">
           {{if .PhotoURL}}
           <img src="{{.PhotoURL}}" alt="{{.Name}}" loading="lazy">
@@ -147,7 +148,7 @@
           {{end}}
         </div>
         <span class="shelf-title">{{.Name}}</span>
-        {{if .KnownFor}}<span class="shelf-sub">{{.KnownFor}}</span>{{end}}
+        {{if or .KnownFor .KnownTitle}}<span class="shelf-sub">{{.KnownFor}}{{if and .KnownFor .KnownTitle}} · {{end}}{{.KnownTitle}}</span>{{end}}
       </a>
       {{end}}
     </div>
@@ -605,6 +606,27 @@
     </div>
   </section>
   {{end}}
+
+  {{if .PopularPeople}}
+  <section class="trending">
+    <h2>Popular people</h2>
+    <div class="shelf">
+      {{range .PopularPeople}}
+      <a class="shelf-card" href="/person?id={{.TMDBID}}" title="{{.Name}}">
+        <div class="shelf-art">
+          {{if .PhotoURL}}
+          <img src="{{.PhotoURL}}" alt="{{.Name}}" loading="lazy">
+          {{else}}
+          <div class="art-empty">{{printf "%.1s" .Name}}</div>
+          {{end}}
+        </div>
+        <span class="shelf-title">{{.Name}}</span>
+        {{if or .KnownFor .KnownTitle}}<span class="shelf-sub">{{.KnownFor}}{{if and .KnownFor .KnownTitle}} · {{end}}{{.KnownTitle}}</span>{{end}}
+      </a>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
   {{end}}
 
 </main>
@@ -622,5 +644,6 @@
 </footer>
 
 <script src="/static/watch.js"></script>
+<script src="/static/people.js"></script>
 </body>
 </html>
