@@ -33,6 +33,9 @@ const defaultBaseURL = "https://api.themoviedb.org/3"
 // imageBaseURL is the TMDB image CDN root.
 const imageBaseURL = "https://image.tmdb.org/t/p/"
 
+// defaultRegion is the country used for watch availability when none is set.
+const defaultRegion = "US"
+
 // MovieSearcher finds movies matching a free-text query.
 type MovieSearcher interface {
 	SearchMovie(ctx context.Context, query string) ([]model.Movie, error)
@@ -66,6 +69,16 @@ func WithBaseURL(base string) Option {
 	return func(c *HTTPClient) { c.baseURL = strings.TrimRight(base, "/") }
 }
 
+// WithRegion sets the country whose watch availability Movie reports. An empty
+// or whitespace value is ignored, keeping the default.
+func WithRegion(region string) Option {
+	return func(c *HTTPClient) {
+		if r := strings.ToUpper(strings.TrimSpace(region)); r != "" {
+			c.region = r
+		}
+	}
+}
+
 // HTTPClient talks to the TMDB API over HTTP.
 type HTTPClient struct {
 	// key is the TMDB v3 key or v4 read access token.
@@ -74,6 +87,8 @@ type HTTPClient struct {
 	bearer bool
 	// baseURL is the API root.
 	baseURL string
+	// region is the country code for watch availability, such as US.
+	region string
 	// httpClient performs the requests.
 	httpClient *http.Client
 }
@@ -89,6 +104,7 @@ func New(key string, opts ...Option) (*HTTPClient, error) {
 		key:        key,
 		bearer:     strings.Count(key, ".") == 2,
 		baseURL:    defaultBaseURL,
+		region:     defaultRegion,
 		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
 	for _, opt := range opts {
@@ -117,7 +133,7 @@ func (c *HTTPClient) SearchMovie(ctx context.Context, query string) ([]model.Mov
 // director, billed cast, and IMDB link.
 func (c *HTTPClient) Movie(ctx context.Context, id int) (*model.Movie, error) {
 	var dto movieDTO
-	q := url.Values{"append_to_response": {"credits"}}
+	q := url.Values{"append_to_response": {"credits,watch/providers"}}
 	if err := c.get(ctx, "/movie/"+strconv.Itoa(id), q, &dto); err != nil {
 		return nil, err
 	}
@@ -126,6 +142,8 @@ func (c *HTTPClient) Movie(ctx context.Context, id int) (*model.Movie, error) {
 	movie.Cast = dto.Credits.castModels()
 	movie.IMDBURL = imdb.TitleURL(movie.IMDBID)
 	movie.IMDBLocationsURL = imdb.LocationsURL(movie.IMDBID)
+	movie.WatchRegion = c.region
+	movie.Availability, movie.WatchURL = dto.WatchProviders.forRegion(c.region)
 	return &movie, nil
 }
 
@@ -310,18 +328,74 @@ func (c *HTTPClient) get(ctx context.Context, path string, q url.Values, out any
 
 // movieDTO is the subset of the TMDB movie payload cinatlas reads.
 type movieDTO struct {
-	ID           int        `json:"id"`
-	Title        string     `json:"title"`
-	ReleaseDate  string     `json:"release_date"`
-	IMDBID       string     `json:"imdb_id"`
-	Overview     string     `json:"overview"`
-	Tagline      string     `json:"tagline"`
-	Runtime      int        `json:"runtime"`
-	VoteAverage  float64    `json:"vote_average"`
-	Genres       []genreDTO `json:"genres"`
-	PosterPath   string     `json:"poster_path"`
-	BackdropPath string     `json:"backdrop_path"`
-	Credits      creditsDTO `json:"credits"`
+	ID             int          `json:"id"`
+	Title          string       `json:"title"`
+	ReleaseDate    string       `json:"release_date"`
+	IMDBID         string       `json:"imdb_id"`
+	Overview       string       `json:"overview"`
+	Tagline        string       `json:"tagline"`
+	Runtime        int          `json:"runtime"`
+	VoteAverage    float64      `json:"vote_average"`
+	Genres         []genreDTO   `json:"genres"`
+	PosterPath     string       `json:"poster_path"`
+	BackdropPath   string       `json:"backdrop_path"`
+	Credits        creditsDTO   `json:"credits"`
+	WatchProviders providersDTO `json:"watch/providers"`
+}
+
+// providersDTO holds watch availability keyed by two-letter country code.
+type providersDTO struct {
+	Results map[string]regionProvidersDTO `json:"results"`
+}
+
+// forRegion returns the availability entries for the region, best access kind
+// first, and the JustWatch deep link. Both are empty when the region has none.
+func (p providersDTO) forRegion(region string) ([]model.Availability, string) {
+	region = strings.ToUpper(strings.TrimSpace(region))
+	r, ok := p.Results[region]
+	if !ok {
+		return nil, ""
+	}
+	av := make([]model.Availability, 0)
+	av = appendProviders(av, r.Flatrate, model.AccessStream)
+	av = appendProviders(av, r.Free, model.AccessFree)
+	av = appendProviders(av, r.Ads, model.AccessAds)
+	av = appendProviders(av, r.Rent, model.AccessRent)
+	av = appendProviders(av, r.Buy, model.AccessBuy)
+	model.SortAvailability(av)
+	if len(av) == 0 {
+		return nil, r.Link
+	}
+	return av, r.Link
+}
+
+// appendProviders maps one access tier's providers onto the running list.
+func appendProviders(av []model.Availability, tier []providerDTO, kind string) []model.Availability {
+	for _, p := range tier {
+		av = append(av, model.Availability{
+			Provider: p.Name,
+			Kind:     kind,
+			LogoURL:  imageURL("w92", p.LogoPath),
+		})
+	}
+	return av
+}
+
+// regionProvidersDTO is the watch availability for one country, split by the
+// kind of access each service offers.
+type regionProvidersDTO struct {
+	Link     string        `json:"link"`
+	Flatrate []providerDTO `json:"flatrate"`
+	Free     []providerDTO `json:"free"`
+	Ads      []providerDTO `json:"ads"`
+	Rent     []providerDTO `json:"rent"`
+	Buy      []providerDTO `json:"buy"`
+}
+
+// providerDTO is one streaming service offering a title.
+type providerDTO struct {
+	Name     string `json:"provider_name"`
+	LogoPath string `json:"logo_path"`
 }
 
 // genreDTO is one genre tag on a movie.
