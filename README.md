@@ -1,4 +1,4 @@
-<img src="internal/web/static/logo.svg" width="150" alt="cinatlas logo">
+<img src="internal/web/static/banner.png" width="100%" alt="cinatlas projector banner">
 
 # cinatlas
 

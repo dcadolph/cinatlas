@@ -44,7 +44,7 @@ const maxShelf = 12
 const maxSimilar = 6
 
 // maxPlaceMovies caps the filmed-here shelf on a place page.
-const maxPlaceMovies = 18
+const maxPlaceMovies = 24
 
 // Server renders and serves the cinatlas site.
 type Server struct {
@@ -74,6 +74,8 @@ func New(client *tmdb.HTTPClient, locator locate.Atlas, log *slog.Logger) (*Serv
 		"runtime":   formatRuntime,
 		"rating":    formatRating,
 		"shortDate": formatShortDate,
+		"add":       func(a, b int) int { return a + b },
+		"sub":       func(a, b int) int { return a - b },
 	}).ParseFS(siteFS, "templates/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("web: parse templates: %w", err)
@@ -154,8 +156,14 @@ type pageData struct {
 	Similar []model.Movie
 	// PlaceName is the place a reverse search matched.
 	PlaceName string
-	// PlaceMovies are the films shot at the searched place.
+	// PlaceMovies are one page of films shot at the searched place.
 	PlaceMovies []model.Movie
+	// PlaceTotal counts every film matched at the place.
+	PlaceTotal int
+	// Page is the current place page, starting at 1.
+	Page int
+	// TotalPages counts the place pages.
+	TotalPages int
 	// SearchMovies are unified-search movie matches in relevance order.
 	SearchMovies []model.Movie
 	// SearchPeople are unified-search person matches in relevance order.
@@ -197,7 +205,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}()
 	go func() {
 		defer wg.Done()
-		movies, err := s.locator.At(ctx, query, maxSimilar)
+		movies, _, err := s.locator.At(ctx, query, 0, maxSimilar)
 		if err != nil {
 			s.log.Error("place search failed", "place", query, "err", err)
 			return
@@ -215,7 +223,8 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	s.render(w, http.StatusOK, "index.html", data)
 }
 
-// handlePlace renders the films shot at a searched place.
+// handlePlace renders one page of the films shot at a searched place. Every
+// match stays reachable through pagination; nothing is hidden.
 func (s *Server) handlePlace(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	data := pageData{Query: query}
@@ -224,14 +233,18 @@ func (s *Server) handlePlace(w http.ResponseWriter, r *http.Request) {
 		s.render(w, http.StatusNotFound, "index.html", data)
 		return
 	}
-	movies, err := s.locator.At(r.Context(), query, maxPlaceMovies)
+	page, err := strconv.Atoi(r.URL.Query().Get("page"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+	movies, total, err := s.locator.At(r.Context(), query, (page-1)*maxPlaceMovies, maxPlaceMovies)
 	if err != nil {
 		s.log.Error("place search failed", "place", query, "err", err)
 		data.Error = "Place search failed. Try again."
 		s.render(w, http.StatusBadGateway, "index.html", data)
 		return
 	}
-	if len(movies) == 0 {
+	if total == 0 {
 		data.Error = fmt.Sprintf("No films with recorded locations at %q yet. "+
 			"Location data is thin outside film hubs. Try a nearby city.", query)
 		s.render(w, http.StatusNotFound, "index.html", data)
@@ -239,6 +252,9 @@ func (s *Server) handlePlace(w http.ResponseWriter, r *http.Request) {
 	}
 	data.PlaceName = query
 	data.PlaceMovies = movies
+	data.PlaceTotal = total
+	data.Page = page
+	data.TotalPages = (total + maxPlaceMovies - 1) / maxPlaceMovies
 	s.render(w, http.StatusOK, "index.html", data)
 }
 

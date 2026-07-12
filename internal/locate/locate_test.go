@@ -122,9 +122,12 @@ func TestAt(t *testing.T) {
 			},
 		},
 	)
-	got, err := svc.At(context.Background(), "Los Angeles", 2)
+	got, total, err := svc.At(context.Background(), "Los Angeles", 0, 2)
 	if err != nil {
 		t.Fatalf("At: %v", err)
+	}
+	if total != 3 {
+		t.Errorf("At total = %d, want 3", total)
 	}
 	want := []model.Movie{
 		{

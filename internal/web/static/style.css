@@ -135,7 +135,18 @@ a.shelf-card:active { transform: translateY(-1px) scale(0.99); }
 .brand:hover { text-decoration: none; }
 .brand-dot { color: var(--gold); }
 
-.brand-mark { height: 34px; width: auto; }
+.brand-mark {
+  height: 38px;
+  width: auto;
+  border-radius: 8px;
+  /* The art ships on a charcoal plate; screen melts it into the dark topbar. */
+  mix-blend-mode: screen;
+}
+
+@media (prefers-color-scheme: light) {
+  /* Invert to black art on white, then multiply melts the plate into light mode. */
+  .brand-mark { filter: invert(1); mix-blend-mode: multiply; }
+}
 
 .tagline {
   font-family: "Playfair Display", Georgia, serif;
@@ -211,6 +222,14 @@ a.shelf-card:active { transform: translateY(-1px) scale(0.99); }
 }
 
 .search-section { margin-bottom: 8px; }
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 22px;
+}
 
 .btn-primary {
   padding: 11px 30px;

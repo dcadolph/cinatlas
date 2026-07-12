@@ -232,20 +232,27 @@ func (c *HTTPClient) searchEntities(ctx context.Context, name string) ([]string,
 	return ids, nil
 }
 
-// filmsAtQuery builds the SPARQL text finding films shot at any candidate place.
+// filmsAtQuery builds the SPARQL text finding films shot at any candidate
+// place, most famous first. Sitelink count stands in for fame so icons beat
+// yesterday's release in film hubs with hundreds of recorded titles.
 func filmsAtQuery(ids []string) string {
 	values := make([]string, 0, len(ids))
 	for _, id := range ids {
 		values = append(values, "wd:"+id)
 	}
-	return `SELECT ?filmLabel ?imdb ?date ?placeLabel WHERE {
+	return `SELECT ?filmLabel ?imdb ?date ?placeLabel ?links WHERE {
   VALUES ?place { ` + strings.Join(values, " ") + ` }
-  ?film wdt:P915 ?place ; wdt:P345 ?imdb .
+  ?film wdt:P915 ?spot ; wdt:P345 ?imdb ; wikibase:sitelinks ?links .
+  ?spot wdt:P131* ?place .
   OPTIONAL { ?film wdt:P577 ?date . }
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . }
+  SERVICE wikibase:label {
+    bd:serviceParam wikibase:language "en" .
+    ?film rdfs:label ?filmLabel .
+    ?spot rdfs:label ?placeLabel .
+  }
 }
-ORDER BY DESC(?date)
-LIMIT 60`
+ORDER BY DESC(?links) DESC(?date)
+LIMIT 500`
 }
 
 // films converts reverse-lookup rows to films, newest first, one per IMDB id.

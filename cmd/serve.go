@@ -13,11 +13,18 @@ import (
 	"github.com/dcadolph/cinatlas/internal/web"
 )
 
-// runServe starts the cinatlas website locally and opens it in the browser.
+// runServe starts the cinatlas website and opens it in the browser when
+// running locally. A PORT environment variable, the convention on hosting
+// platforms, switches the default to all interfaces and skips the browser.
 func runServe(ctx context.Context, args []string) int {
 	var opt options
 	fs := newFlagSet("serve", &opt)
-	addr := fs.String("addr", "127.0.0.1:8878", "listen address")
+	defaultAddr := "127.0.0.1:8878"
+	hosted := os.Getenv("PORT") != ""
+	if hosted {
+		defaultAddr = ":" + os.Getenv("PORT")
+	}
+	addr := fs.String("addr", defaultAddr, "listen address")
 	if err := fs.Parse(args); err != nil {
 		return CodeUsage
 	}
@@ -41,7 +48,9 @@ func runServe(ctx context.Context, args []string) int {
 	}
 	siteURL := "http://" + listener.Addr().String()
 	log.Info("cinatlas serving", "url", siteURL)
-	openBrowser(ctx, siteURL)
+	if !hosted {
+		openBrowser(ctx, siteURL)
+	}
 	if err := http.Serve(listener, server.Routes()); err != nil {
 		fmt.Fprintln(os.Stderr, "cinatlas serve:", err)
 		return CodeError

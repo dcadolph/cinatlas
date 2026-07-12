@@ -24,12 +24,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@1,500;1,600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
-<link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+<link rel="icon" type="image/png" href="/static/logo.png">
 </head>
 <body>
 
 <header class="topbar">
-  <a class="brand" href="/"><img class="brand-mark" src="/static/logo.svg" alt=""><span>cin<span class="brand-dot">•</span>atlas</span></a>
+  <a class="brand" href="/"><img class="brand-mark" src="/static/logo.png" alt=""><span>cin<span class="brand-dot">•</span>atlas</span></a>
   <span class="tagline">every frame has a place</span>
 </header>
 <div class="marquee-lights" aria-hidden="true"></div>
@@ -324,7 +324,7 @@
           <div class="hero-text">
             <span class="eyebrow">Filmed here</span>
             <h1>{{.PlaceName}}</h1>
-            <p class="tagline-line">Every film with a recorded location at this place.</p>
+            <p class="tagline-line">{{.PlaceTotal}} films with a recorded location here, most famous first.</p>
           </div>
         </div>
       </div>
@@ -349,6 +349,13 @@
         </a>
         {{end}}
       </div>
+      {{if gt .TotalPages 1}}
+      <nav class="pager">
+        {{if gt .Page 1}}<a class="alt-pill" href="/place?q={{.Query}}&page={{sub .Page 1}}">← Previous</a>{{end}}
+        <span class="muted">Page {{.Page}} of {{.TotalPages}}</span>
+        {{if lt .Page .TotalPages}}<a class="alt-pill" href="/place?q={{.Query}}&page={{add .Page 1}}">Next →</a>{{end}}
+      </nav>
+      {{end}}
     </div>
   </section>
   {{end}}

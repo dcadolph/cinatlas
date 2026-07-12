@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: cinatlas
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: CINATLAS_TMDB_KEY
+        sync: false

@@ -48,7 +48,7 @@ func (f LocatorFunc) Locate(ctx context.Context, imdbID string) (*Located, error
 // Atlas answers both directions: film to places, and place to films.
 type Atlas interface {
 	Locator
-	At(ctx context.Context, place string, limit int) ([]model.Movie, error)
+	At(ctx context.Context, place string, offset, limit int) ([]model.Movie, int, error)
 }
 
 // IMDBFinder resolves an IMDB title id to a movie with images and ids.
@@ -86,16 +86,19 @@ func New(resolver wikidata.Resolver, places wikidata.PlaceSearcher,
 	return &Service{resolver: resolver, places: places, sections: sections, finder: finder}
 }
 
-// At returns movies filmed at the named place, newest first, enriched with
-// posters and TMDB ids where TMDB knows the film.
-func (s *Service) At(ctx context.Context, place string, limit int) ([]model.Movie, error) {
+// At returns one page of movies filmed at the named place, most famous first,
+// plus the total match count. Only the requested page is enriched through
+// TMDB, so deep pages stay as cheap as the first.
+func (s *Service) At(ctx context.Context, place string, offset, limit int) ([]model.Movie, int, error) {
 	hits, err := s.places.FilmsAt(ctx, place)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	if len(hits) > limit {
-		hits = hits[:limit]
+	total := len(hits)
+	if offset >= total {
+		return nil, total, nil
 	}
+	hits = hits[offset:min(total, offset+limit)]
 	log := logutil.FromContext(ctx)
 	movies := make([]model.Movie, len(hits))
 	sem := make(chan struct{}, findWorkers)
@@ -114,7 +117,7 @@ func (s *Service) At(ctx context.Context, place string, limit int) ([]model.Movi
 		}(i, hit)
 	}
 	wg.Wait()
-	return movies, nil
+	return movies, total, nil
 }
 
 // enrichHit upgrades one reverse hit through TMDB, falling back to the
