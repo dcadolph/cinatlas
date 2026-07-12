@@ -162,6 +162,21 @@ func (c *HTTPClient) Upcoming(ctx context.Context) ([]model.Movie, error) {
 	return c.movieList(ctx, "/movie/upcoming")
 }
 
+// PopularPeople returns the people trending on TMDB this week.
+func (c *HTTPClient) PopularPeople(ctx context.Context) ([]model.Person, error) {
+	var out struct {
+		Results []personListDTO `json:"results"`
+	}
+	if err := c.get(ctx, "/person/popular", nil, &out); err != nil {
+		return nil, err
+	}
+	people := make([]model.Person, 0, len(out.Results))
+	for _, r := range out.Results {
+		people = append(people, r.toModel())
+	}
+	return people, nil
+}
+
 // Recommendations returns movies recommended alongside the given movie.
 func (c *HTTPClient) Recommendations(ctx context.Context, id int) ([]model.Movie, error) {
 	return c.movieList(ctx, "/movie/"+strconv.Itoa(id)+"/recommendations")
@@ -213,14 +228,55 @@ func (c *HTTPClient) SearchMulti(ctx context.Context, query string) ([]model.Mov
 
 // multiDTO is one blended search result, movie or person by media type.
 type multiDTO struct {
-	MediaType   string `json:"media_type"`
-	ID          int    `json:"id"`
-	Title       string `json:"title"`
-	ReleaseDate string `json:"release_date"`
-	PosterPath  string `json:"poster_path"`
-	Name        string `json:"name"`
-	ProfilePath string `json:"profile_path"`
-	KnownFor    string `json:"known_for_department"`
+	MediaType   string        `json:"media_type"`
+	ID          int           `json:"id"`
+	Title       string        `json:"title"`
+	ReleaseDate string        `json:"release_date"`
+	PosterPath  string        `json:"poster_path"`
+	Name        string        `json:"name"`
+	ProfilePath string        `json:"profile_path"`
+	KnownFor    string        `json:"known_for_department"`
+	KnownForArr []knownForDTO `json:"known_for"`
+}
+
+// personListDTO is a person entry from a list endpoint such as popular people.
+type personListDTO struct {
+	ID          int           `json:"id"`
+	Name        string        `json:"name"`
+	ProfilePath string        `json:"profile_path"`
+	KnownFor    string        `json:"known_for_department"`
+	KnownForArr []knownForDTO `json:"known_for"`
+}
+
+// toModel maps a list person entry to the shared person type.
+func (p personListDTO) toModel() model.Person {
+	return model.Person{
+		TMDBID:     p.ID,
+		Name:       p.Name,
+		KnownFor:   p.KnownFor,
+		KnownTitle: firstKnownTitle(p.KnownForArr),
+		PhotoURL:   imageURL("w185", p.ProfilePath),
+	}
+}
+
+// knownForDTO is one title a person is known for, movie or tv.
+type knownForDTO struct {
+	Title string `json:"title"`
+	Name  string `json:"name"`
+}
+
+// firstKnownTitle returns the first known-for title, movie title or tv name,
+// empty when the list holds none.
+func firstKnownTitle(list []knownForDTO) string {
+	for _, k := range list {
+		if k.Title != "" {
+			return k.Title
+		}
+		if k.Name != "" {
+			return k.Name
+		}
+	}
+	return ""
 }
 
 // movie converts a movie-typed result to the shared movie type.
@@ -237,10 +293,11 @@ func (m multiDTO) movie() model.Movie {
 // person converts a person-typed result to the shared person type.
 func (m multiDTO) person() model.Person {
 	return model.Person{
-		TMDBID:   m.ID,
-		Name:     m.Name,
-		KnownFor: m.KnownFor,
-		PhotoURL: imageURL("w185", m.ProfilePath),
+		TMDBID:     m.ID,
+		Name:       m.Name,
+		KnownFor:   m.KnownFor,
+		KnownTitle: firstKnownTitle(m.KnownForArr),
+		PhotoURL:   imageURL("w185", m.ProfilePath),
 	}
 }
 

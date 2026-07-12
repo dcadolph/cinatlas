@@ -949,6 +949,46 @@ a.shelf-card:hover .shelf-art {
   font-size: 15px;
 }
 .did-you-mean strong { color: var(--gold); font-weight: 600; }
+
+.search-section h2 .count {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dim);
+  background: var(--card-hi);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.dept-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.dept-filter:empty { display: none; }
+
+.dept-pill {
+  cursor: pointer;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--dim);
+  background: var(--card);
+  border: 1px solid var(--line-hi);
+  border-radius: 999px;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.dept-pill:hover { color: var(--gold); border-color: var(--gold-line); }
+.dept-pill.active {
+  color: var(--gold);
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
+}
+
+.shelf-card.hidden { display: none; }
 .nav-drop {
   position: absolute;
   right: 0;

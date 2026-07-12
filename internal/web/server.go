@@ -150,6 +150,8 @@ type pageData struct {
 	NowPlaying []model.Movie
 	// Upcoming is the home-page coming-soon shelf, soonest first.
 	Upcoming []model.Movie
+	// PopularPeople is the home-page trending-people shelf.
+	PopularPeople []model.Person
 	// Similar is the more-like-this row under a movie.
 	Similar []model.Movie
 	// PlaceName is the place a reverse search matched.
@@ -327,11 +329,22 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	go fetch(&data.Trending, "trending", s.tmdb.Trending)
 	go fetch(&data.NowPlaying, "now playing", s.tmdb.NowPlaying)
 	go fetch(&data.Upcoming, "upcoming", s.tmdb.Upcoming)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		people, err := s.tmdb.PopularPeople(ctx)
+		if err != nil {
+			s.log.Error("popular people fetch failed", "err", err)
+			return
+		}
+		data.PopularPeople = people
+	}()
 	wg.Wait()
 
 	data.Trending = data.Trending[:min(len(data.Trending), maxShelf)]
 	data.NowPlaying = data.NowPlaying[:min(len(data.NowPlaying), maxShelf)]
 	data.Upcoming = futureReleases(data.Upcoming, time.Now(), maxShelf)
+	data.PopularPeople = data.PopularPeople[:min(len(data.PopularPeople), maxShelf)]
 	s.render(w, http.StatusOK, "index.html", data)
 }
 
