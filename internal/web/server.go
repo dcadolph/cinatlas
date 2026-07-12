@@ -185,6 +185,9 @@ type pageData struct {
 	// PeopleFirst orders the people shelf above movies when a person
 	// outranked every movie.
 	PeopleFirst bool
+	// Corrected is the relaxed query a fuzzy fallback matched on, empty
+	// when the original query found results directly.
+	Corrected string
 	// Error is a human-readable failure to show instead of a result.
 	Error string
 }
@@ -228,11 +231,35 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	data.PeopleFirst = first == "person"
 	if len(data.SearchMovies) == 0 && len(data.SearchPeople) == 0 && len(data.AtMovies) == 0 {
+		s.fuzzyFallback(ctx, query, &data)
+	}
+	if len(data.SearchMovies) == 0 && len(data.SearchPeople) == 0 && len(data.AtMovies) == 0 {
 		data.Error = fmt.Sprintf("Nothing found for %q. Try another film, name, or place.", query)
 		s.render(w, http.StatusNotFound, "index.html", data)
 		return
 	}
 	s.render(w, http.StatusOK, "index.html", data)
+}
+
+// fuzzyFallback retries the multi search with typo-tolerant variants of the
+// query and fills data with the first variant that matches, recording it as
+// the correction. It is a no-op when no variant matches.
+func (s *Server) fuzzyFallback(ctx context.Context, query string, data *pageData) {
+	for _, variant := range relaxQuery(query) {
+		movies, people, first, err := s.tmdb.SearchMulti(ctx, variant)
+		if err != nil {
+			s.log.Error("fuzzy search failed", "variant", variant, "err", err)
+			continue
+		}
+		if len(movies) == 0 && len(people) == 0 {
+			continue
+		}
+		data.SearchMovies = movies[:min(len(movies), maxShelf)]
+		data.SearchPeople = people[:min(len(people), maxShelf)]
+		data.PeopleFirst = first == "person"
+		data.Corrected = variant
+		return
+	}
 }
 
 // handlePlace renders one page of the films shot at a searched place. Every

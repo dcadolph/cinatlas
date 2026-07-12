@@ -885,24 +885,70 @@ a.shelf-card:hover .shelf-art {
 }
 
 /* Topbar menu */
-.nav {
+.top-actions {
   margin-left: auto;
-  position: relative;
   align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--dim);
+  border: 1px solid var(--line-hi);
+  border-radius: 8px;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.icon-btn:hover {
+  color: var(--gold);
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
+  text-decoration: none;
+}
+
+.nav {
+  position: relative;
 }
 .nav-toggle {
   list-style: none;
   cursor: pointer;
-  font-size: 20px;
   line-height: 1;
-  color: var(--fg);
-  padding: 5px 10px;
+  color: var(--dim);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--line-hi);
   border-radius: 8px;
   user-select: none;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
+.nav-toggle:hover { color: var(--gold); border-color: var(--gold-line); background: var(--gold-soft); }
 .nav-toggle::-webkit-details-marker { display: none; }
-.nav[open] .nav-toggle { border-color: var(--gold-line); color: var(--gold); }
+.nav[open] .nav-toggle { border-color: var(--gold-line); color: var(--gold); background: var(--gold-soft); }
+
+.nav-head {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.nav-head:first-child { padding-top: 4px; }
+
+.did-you-mean {
+  margin: 0 0 18px;
+  color: var(--dim);
+  font-size: 15px;
+}
+.did-you-mean strong { color: var(--gold); font-weight: 600; }
 .nav-drop {
   position: absolute;
   right: 0;
