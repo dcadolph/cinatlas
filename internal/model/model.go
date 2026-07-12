@@ -3,7 +3,9 @@ package model
 
 import (
 	"net/url"
+	"sort"
 	"strconv"
+	"strings"
 )
 
 // Movie is a film with the facts cinatlas reports about it.
@@ -80,6 +82,8 @@ type Credit struct {
 	Character string `json:"character,omitempty"`
 	// Job is the crew role such as Director, empty for acting credits.
 	Job string `json:"job,omitempty"`
+	// Votes counts TMDB votes on the title, a durable fame signal.
+	Votes int `json:"votes,omitempty"`
 	// PosterURL is the title poster, empty when none exists.
 	PosterURL string `json:"posterUrl,omitempty"`
 }
@@ -100,6 +104,57 @@ type Location struct {
 	MapsURL string `json:"mapsUrl,omitempty"`
 	// EarthURL links the place on Google Earth.
 	EarthURL string `json:"earthUrl,omitempty"`
+}
+
+// SortCredits orders credits in place: "az" by title, "new" and "old" by
+// year with unknown years last, anything else keeps fame order.
+func SortCredits(credits []Credit, order string) {
+	switch order {
+	case "az":
+		sort.SliceStable(credits, func(i, j int) bool {
+			return strings.ToLower(credits[i].Title) < strings.ToLower(credits[j].Title)
+		})
+	case "new":
+		sort.SliceStable(credits, func(i, j int) bool { return credits[i].Year > credits[j].Year })
+	case "old":
+		sort.SliceStable(credits, func(i, j int) bool {
+			if credits[i].Year == 0 || credits[j].Year == 0 {
+				return credits[j].Year == 0 && credits[i].Year != 0
+			}
+			return credits[i].Year < credits[j].Year
+		})
+	}
+}
+
+// CreditDecades lists the release decades present, newest first.
+func CreditDecades(credits []Credit) []int {
+	seen := map[int]bool{}
+	for _, c := range credits {
+		if c.Year > 0 {
+			seen[c.Year/10*10] = true
+		}
+	}
+	out := make([]int, 0, len(seen))
+	for d := range seen {
+		out = append(out, d)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(out)))
+	return out
+}
+
+// FilterCreditsByDecade keeps credits released in the given decade, or all
+// credits when decade is zero.
+func FilterCreditsByDecade(credits []Credit, decade int) []Credit {
+	if decade == 0 {
+		return credits
+	}
+	kept := make([]Credit, 0, len(credits))
+	for _, c := range credits {
+		if c.Year >= decade && c.Year < decade+10 {
+			kept = append(kept, c)
+		}
+	}
+	return kept
 }
 
 // ResolvedLocation builds a Location with coordinates and map links.
