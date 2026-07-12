@@ -31,8 +31,8 @@ var siteFS embed.FS
 // maxAlternates caps the other-matches strip under a result.
 const maxAlternates = 5
 
-// maxCredits caps filmography rows on a person page.
-const maxCredits = 30
+// creditsPerPage sizes one filmography page.
+const creditsPerPage = 24
 
 // maxCast caps the cast shelf at top billing, where photos are dependable.
 const maxCast = 14
@@ -138,8 +138,6 @@ type pageData struct {
 	MovieAlternates []model.Movie
 	// PersonAlternates are other search matches for disambiguation.
 	PersonAlternates []model.Person
-	// MoreCredits reports that the filmography was truncated.
-	MoreCredits bool
 	// MoreCast reports that the cast shelf was truncated to top billing.
 	MoreCast bool
 	// FullCreditsURL links the IMDB full cast page when the shelf truncates.
@@ -419,13 +417,30 @@ func (s *Server) handlePerson(w http.ResponseWriter, r *http.Request) {
 		s.render(w, http.StatusBadGateway, "index.html", data)
 		return
 	}
-	if len(person.Credits) > maxCredits {
-		person.Credits = person.Credits[:maxCredits]
-		data.MoreCredits = true
-	}
 	if data.Query == "" {
 		data.Query = person.Name
 	}
+
+	page, err := strconv.Atoi(r.URL.Query().Get("page"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+	data.Sort = r.URL.Query().Get("sort")
+	data.Decade, _ = strconv.Atoi(r.URL.Query().Get("decade"))
+	data.Decades = model.CreditDecades(person.Credits)
+
+	credits := model.FilterCreditsByDecade(person.Credits, data.Decade)
+	model.SortCredits(credits, data.Sort)
+	total := len(credits)
+	data.Page = page
+	data.TotalPages = (total + creditsPerPage - 1) / creditsPerPage
+	start := (page - 1) * creditsPerPage
+	if start >= total {
+		credits = nil
+	} else {
+		credits = credits[start:min(total, start+creditsPerPage)]
+	}
+	person.Credits = credits
 	data.Person = person
 	s.render(w, http.StatusOK, "index.html", data)
 }
