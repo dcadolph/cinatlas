@@ -1,3 +1,5 @@
+<img src="internal/web/static/logo.svg" width="150" alt="cinatlas logo">
+
 # cinatlas
 
 Quick movie facts from the command line. Point it at a movie or a person and get

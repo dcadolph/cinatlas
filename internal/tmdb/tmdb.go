@@ -164,6 +164,68 @@ func (c *HTTPClient) movieList(ctx context.Context, path string) ([]model.Movie,
 	return movies, nil
 }
 
+// SearchMulti returns movies and people matching the query in TMDB's blended
+// relevance order, plus which kind ranked first: movie, person, or empty.
+func (c *HTTPClient) SearchMulti(ctx context.Context, query string) ([]model.Movie, []model.Person, string, error) {
+	var out struct {
+		Results []multiDTO `json:"results"`
+	}
+	q := url.Values{"query": {query}}
+	if err := c.get(ctx, "/search/multi", q, &out); err != nil {
+		return nil, nil, "", err
+	}
+	var movies []model.Movie
+	var people []model.Person
+	first := ""
+	for _, r := range out.Results {
+		switch r.MediaType {
+		case "movie":
+			movies = append(movies, r.movie())
+		case "person":
+			people = append(people, r.person())
+		default:
+			continue
+		}
+		if first == "" {
+			first = r.MediaType
+		}
+	}
+	return movies, people, first, nil
+}
+
+// multiDTO is one blended search result, movie or person by media type.
+type multiDTO struct {
+	MediaType   string `json:"media_type"`
+	ID          int    `json:"id"`
+	Title       string `json:"title"`
+	ReleaseDate string `json:"release_date"`
+	PosterPath  string `json:"poster_path"`
+	Name        string `json:"name"`
+	ProfilePath string `json:"profile_path"`
+	KnownFor    string `json:"known_for_department"`
+}
+
+// movie converts a movie-typed result to the shared movie type.
+func (m multiDTO) movie() model.Movie {
+	return model.Movie{
+		TMDBID:      m.ID,
+		Title:       m.Title,
+		Year:        parseYear(m.ReleaseDate),
+		ReleaseDate: m.ReleaseDate,
+		PosterURL:   imageURL("w342", m.PosterPath),
+	}
+}
+
+// person converts a person-typed result to the shared person type.
+func (m multiDTO) person() model.Person {
+	return model.Person{
+		TMDBID:   m.ID,
+		Name:     m.Name,
+		KnownFor: m.KnownFor,
+		PhotoURL: imageURL("w185", m.ProfilePath),
+	}
+}
+
 // FindByIMDB returns the movie carrying the given IMDB title id, or
 // ErrNotFound when TMDB does not know it.
 func (c *HTTPClient) FindByIMDB(ctx context.Context, imdbID string) (*model.Movie, error) {

@@ -173,6 +173,40 @@ func TestRecommendations(t *testing.T) {
 	}
 }
 
+// TestSearchMulti checks blended search splitting, mapping, and first-kind.
+func TestSearchMulti(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, map[string]string{
+		"/search/multi": `{"results":[` +
+			`{"media_type":"person","id":5,"name":"Michael Mann",` +
+			`"known_for_department":"Directing","profile_path":"/mann.jpg"},` +
+			`{"media_type":"movie","id":1,"title":"Heat","release_date":"1995-12-15",` +
+			`"poster_path":"/heat.jpg"},` +
+			`{"media_type":"tv","id":9,"name":"Heat TV"}]}`,
+	})
+	movies, people, first, err := newClient(t, srv).SearchMulti(context.Background(), "heat mann")
+	if err != nil {
+		t.Fatalf("SearchMulti: %v", err)
+	}
+	wantMovies := []model.Movie{{
+		TMDBID: 1, Title: "Heat", Year: 1995, ReleaseDate: "1995-12-15",
+		PosterURL: "https://image.tmdb.org/t/p/w342/heat.jpg",
+	}}
+	wantPeople := []model.Person{{
+		TMDBID: 5, Name: "Michael Mann", KnownFor: "Directing",
+		PhotoURL: "https://image.tmdb.org/t/p/w185/mann.jpg",
+	}}
+	if !reflect.DeepEqual(movies, wantMovies) {
+		t.Errorf("SearchMulti movies\n got %+v\nwant %+v", movies, wantMovies)
+	}
+	if !reflect.DeepEqual(people, wantPeople) {
+		t.Errorf("SearchMulti people\n got %+v\nwant %+v", people, wantPeople)
+	}
+	if first != "person" {
+		t.Errorf("SearchMulti first = %q, want person", first)
+	}
+}
+
 // TestFindByIMDB checks IMDB id resolution to a movie with links set.
 func TestFindByIMDB(t *testing.T) {
 	t.Parallel()

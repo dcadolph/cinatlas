@@ -1,4 +1,4 @@
-/* cinatlas — marquee gold on cinema black. Poster type, grain, deco frames. */
+/* cinatlas: marquee gold on cinema black. Poster type, grain, deco frames. */
 
 :root {
   --bg: #08090c;
@@ -128,9 +128,14 @@ a.shelf-card:active { transform: translateY(-1px) scale(0.99); }
   font-size: 30px;
   color: var(--fg);
   text-shadow: 0 0 22px var(--gold-glow);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 .brand:hover { text-decoration: none; }
 .brand-dot { color: var(--gold); }
+
+.brand-mark { height: 34px; width: auto; }
 
 .tagline {
   font-family: "Playfair Display", Georgia, serif;
@@ -198,28 +203,14 @@ a.shelf-card:active { transform: translateY(-1px) scale(0.99); }
   gap: 12px;
 }
 
-.kind-pills { display: flex; gap: 8px; }
+.search-hint {
+  font-family: "Playfair Display", Georgia, serif;
+  font-style: italic;
+  font-size: 14px;
+  color: var(--faint);
+}
 
-.pill {
-  padding: 7px 18px;
-  font-size: 12px;
-  font-weight: 700;
-  font-family: "Space Grotesk", sans-serif;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--dim);
-  background: transparent;
-  border: 1px solid var(--line-hi);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.pill:hover { color: var(--fg); border-color: var(--gold-line); }
-.pill.active {
-  color: var(--gold);
-  background: var(--gold-soft);
-  border-color: var(--gold-line);
-}
+.search-section { margin-bottom: 8px; }
 
 .btn-primary {
   padding: 11px 30px;

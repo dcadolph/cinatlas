@@ -107,6 +107,7 @@ func formatShortDate(iso string) string {
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handleHome)
+	mux.HandleFunc("GET /search", s.handleSearch)
 	mux.HandleFunc("GET /movie", s.handleMovie)
 	mux.HandleFunc("GET /person", s.handlePerson)
 	mux.HandleFunc("GET /place", s.handlePlace)
@@ -119,7 +120,6 @@ func (s *Server) Routes() http.Handler {
 // handleNotFound renders a styled 404 for unknown paths.
 func (s *Server) handleNotFound(w http.ResponseWriter, _ *http.Request) {
 	s.render(w, http.StatusNotFound, "index.html", pageData{
-		Kind:  "movie",
 		Error: "That reel does not exist. Try a search instead.",
 	})
 }
@@ -128,8 +128,6 @@ func (s *Server) handleNotFound(w http.ResponseWriter, _ *http.Request) {
 type pageData struct {
 	// Query is the search text echoed back into the box.
 	Query string
-	// Kind selects the active search pill, movie or person.
-	Kind string
 	// Movie is the movie result, nil on other pages.
 	Movie *model.Movie
 	// Person is the person result, nil on other pages.
@@ -158,14 +156,69 @@ type pageData struct {
 	PlaceName string
 	// PlaceMovies are the films shot at the searched place.
 	PlaceMovies []model.Movie
+	// SearchMovies are unified-search movie matches in relevance order.
+	SearchMovies []model.Movie
+	// SearchPeople are unified-search person matches in relevance order.
+	SearchPeople []model.Person
+	// AtMovies are unified-search films shot at the query as a place.
+	AtMovies []model.Movie
+	// PeopleFirst orders the people shelf above movies when a person
+	// outranked every movie.
+	PeopleFirst bool
 	// Error is a human-readable failure to show instead of a result.
 	Error string
+}
+
+// handleSearch renders one query across every axis at once: movies, people,
+// and the query as a filming place, most relevant first.
+func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	data := pageData{Query: query}
+	if query == "" {
+		data.Error = "Type a film, a name, or a place."
+		s.render(w, http.StatusNotFound, "index.html", data)
+		return
+	}
+
+	var wg sync.WaitGroup
+	var first string
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		movies, people, firstKind, err := s.tmdb.SearchMulti(ctx, query)
+		if err != nil {
+			s.log.Error("multi search failed", "query", query, "err", err)
+			return
+		}
+		data.SearchMovies = movies[:min(len(movies), maxShelf)]
+		data.SearchPeople = people[:min(len(people), maxShelf)]
+		first = firstKind
+	}()
+	go func() {
+		defer wg.Done()
+		movies, err := s.locator.At(ctx, query, maxSimilar)
+		if err != nil {
+			s.log.Error("place search failed", "place", query, "err", err)
+			return
+		}
+		data.AtMovies = movies
+	}()
+	wg.Wait()
+
+	data.PeopleFirst = first == "person"
+	if len(data.SearchMovies) == 0 && len(data.SearchPeople) == 0 && len(data.AtMovies) == 0 {
+		data.Error = fmt.Sprintf("Nothing found for %q. Try another film, name, or place.", query)
+		s.render(w, http.StatusNotFound, "index.html", data)
+		return
+	}
+	s.render(w, http.StatusOK, "index.html", data)
 }
 
 // handlePlace renders the films shot at a searched place.
 func (s *Server) handlePlace(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	data := pageData{Query: query, Kind: "place"}
+	data := pageData{Query: query}
 	if query == "" {
 		data.Error = "Type a place to find what filmed there."
 		s.render(w, http.StatusNotFound, "index.html", data)
@@ -180,7 +233,7 @@ func (s *Server) handlePlace(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(movies) == 0 {
 		data.Error = fmt.Sprintf("No films with recorded locations at %q yet. "+
-			"Location data is thin outside film hubs — try a nearby city.", query)
+			"Location data is thin outside film hubs. Try a nearby city.", query)
 		s.render(w, http.StatusNotFound, "index.html", data)
 		return
 	}
@@ -193,7 +246,7 @@ func (s *Server) handlePlace(w http.ResponseWriter, r *http.Request) {
 // coming-soon walls, fetched concurrently and each best effort.
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	data := pageData{Kind: "movie"}
+	data := pageData{}
 
 	var wg sync.WaitGroup
 	fetch := func(dst *[]model.Movie, name string, f func(context.Context) ([]model.Movie, error)) {
@@ -236,7 +289,7 @@ func futureReleases(movies []model.Movie, now time.Time, limit int) []model.Movi
 func (s *Server) handleMovie(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	data := pageData{Query: query, Kind: "movie"}
+	data := pageData{Query: query}
 
 	id, ok := s.resolveMovieID(ctx, r, &data)
 	if !ok {
@@ -320,7 +373,7 @@ func (s *Server) resolveMovieID(ctx context.Context, r *http.Request, data *page
 func (s *Server) handlePerson(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	data := pageData{Query: query, Kind: "person"}
+	data := pageData{Query: query}
 
 	id, ok := s.resolvePersonID(ctx, r, &data)
 	if !ok {

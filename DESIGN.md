@@ -1,4 +1,4 @@
-# cinatlas — Design
+# cinatlas Design
 
 ## Overview
 
@@ -114,9 +114,9 @@ poster-shelf filmography with merged roles.
 Done: CLI, disk cache, website with discovery walls, tiered location pipeline,
 interactive globe.
 
-Next: smarter search (TMDB multi-search to auto-detect movie versus person; a
-phrase-to-title layer is possible with an LLM at real cost). Public hosting waits
-until the data and look earn it. Mobile wraps the same backend later.
+Next: a phrase-to-title search layer is possible with an LLM at real cost. Public
+hosting waits until the data and look earn it; the domain cinatlas.com is already
+secured. Mobile wraps the same backend later.
 
 ## Open questions
 

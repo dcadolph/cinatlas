@@ -63,6 +63,13 @@ func newSite(t *testing.T) *httptest.Server {
 			`"credits":{"cast":[{"id":10,"name":"Al Pacino","character":"Vincent Hanna"}],` +
 			`"crew":[{"id":20,"name":"Michael Mann","job":"Director"}]}}`))
 	})
+	mux.HandleFunc("/search/multi", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"results":[` +
+			`{"media_type":"movie","id":1,"title":"Heat","release_date":"1995-12-15",` +
+			`"poster_path":"/heat.jpg"},` +
+			`{"media_type":"person","id":5,"name":"Michael Mann",` +
+			`"known_for_department":"Directing"}]}`))
+	})
 	mux.HandleFunc("/trending/movie/week", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"results":[{"id":3,"title":"Trending Now",` +
 			`"release_date":"2026-04-04","poster_path":"/trend.jpg"}]}`))
@@ -179,6 +186,16 @@ func TestPages(t *testing.T) {
 	}, { // Test 9: Place with no recorded films renders the honest empty state.
 		Path: "/place?q=nowhere", WantStatus: http.StatusNotFound,
 		WantContains: []string{"No films with recorded locations"},
+	}, { // Test 10: Unified search renders movies, people, and the place shelf.
+		Path: "/search?q=heat", WantStatus: http.StatusOK,
+		WantContains: []string{
+			"Movies", "Heat", "/movie?id=1",
+			"People", "Michael Mann", "/person?id=5",
+			"Filmed at", "filmed-here page",
+		},
+	}, { // Test 11: Unified search with no query renders guidance.
+		Path: "/search", WantStatus: http.StatusNotFound,
+		WantContains: []string{"Type a film, a name, or a place."},
 	}}
 	for testNum, test := range tests {
 		t.Run(test.Path, func(t *testing.T) {

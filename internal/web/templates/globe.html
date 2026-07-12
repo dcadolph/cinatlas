@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} — the globe — cinatlas</title>
+<title>{{.Title}} · the globe · cinatlas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
+<link rel="icon" type="image/svg+xml" href="/static/logo.svg">
 <style>
   :root {
     --bg: #08090c;
@@ -69,7 +69,7 @@
 
 <header class="globe-bar">
   <a class="brand" href="/">cin<b>•</b>atlas</a>
-  <span class="globe-title">{{.Title}}{{if .Year}} ({{.Year}}){{end}} — <a href="{{.MovieURL}}">back to the film</a></span>
+  <span class="globe-title">{{.Title}}{{if .Year}} ({{.Year}}){{end}} · <a href="{{.MovieURL}}">back to the film</a></span>
 </header>
 
 <div id="map"></div>

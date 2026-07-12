@@ -3,33 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>cinatlas{{if .Movie}} — {{.Movie.Title}}{{else if .Person}} — {{.Person.Name}}{{end}}</title>
+<title>cinatlas{{if .Movie}} · {{.Movie.Title}}{{else if .Person}} · {{.Person.Name}}{{end}}</title>
 <meta name="description" content="Quick movie facts: where it was filmed, who is in it, what else they made.">
 {{if .Movie}}
 <meta property="og:type" content="video.movie">
-<meta property="og:title" content="{{.Movie.Title}}{{if .Movie.Year}} ({{.Movie.Year}}){{end}} — cinatlas">
+<meta property="og:title" content="{{.Movie.Title}}{{if .Movie.Year}} ({{.Movie.Year}}){{end}} · cinatlas">
 <meta property="og:description" content="{{if .Movie.Overview}}{{.Movie.Overview}}{{else}}Where it was filmed, who is in it, and more.{{end}}">
 {{if .Movie.BackdropURL}}<meta property="og:image" content="{{.Movie.BackdropURL}}">{{else if .Movie.PosterURL}}<meta property="og:image" content="{{.Movie.PosterURL}}">{{end}}
 {{else if .Person}}
 <meta property="og:type" content="profile">
-<meta property="og:title" content="{{.Person.Name}} — cinatlas">
+<meta property="og:title" content="{{.Person.Name}} · cinatlas">
 <meta property="og:description" content="Filmography and quick facts.">
 {{if .Person.PhotoURL}}<meta property="og:image" content="{{.Person.PhotoURL}}">{{end}}
 {{else}}
 <meta property="og:type" content="website">
-<meta property="og:title" content="cinatlas — every frame has a place">
+<meta property="og:title" content="cinatlas · every frame has a place">
 <meta property="og:description" content="Quick movie facts: where it was filmed, who is in it, what else they made.">
 {{end}}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@1,500;1,600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+<link rel="icon" type="image/svg+xml" href="/static/logo.svg">
 </head>
 <body>
 
 <header class="topbar">
-  <a class="brand" href="/">cin<span class="brand-dot">•</span>atlas</a>
+  <a class="brand" href="/"><img class="brand-mark" src="/static/logo.svg" alt=""><span>cin<span class="brand-dot">•</span>atlas</span></a>
   <span class="tagline">every frame has a place</span>
 </header>
 <div class="marquee-lights" aria-hidden="true"></div>
@@ -37,20 +37,13 @@
 <main class="wrap">
 
   <section class="search-panel">
-    <form class="search-form" action="/{{.Kind}}" method="get">
+    <form class="search-form" action="/search" method="get">
       <input class="search-input" type="search" name="q" value="{{.Query}}"
-             placeholder="Try “Fargo”, “Heat”, or “Denis Villeneuve”…"
+             placeholder="A film, a person, or a place. One box finds them all."
              autocomplete="off" {{if not .Movie}}{{if not .Person}}autofocus{{end}}{{end}}>
       <div class="search-row">
-        <div class="kind-pills">
-          <button class="pill{{if eq .Kind "movie"}} active{{end}}" type="submit" formaction="/movie"
-                  title="Search movies">Movie</button>
-          <button class="pill{{if eq .Kind "person"}} active{{end}}" type="submit" formaction="/person"
-                  title="Search actors and directors">Person</button>
-          <button class="pill{{if eq .Kind "place"}} active{{end}}" type="submit" formaction="/place"
-                  title="Find films shot at a place">Place</button>
-        </div>
-        <button class="btn-primary" type="submit" title="Search">Search</button>
+        <span class="search-hint">Try “Heat”, “Villeneuve”, or “Monument Valley”</span>
+        <button class="btn-primary" type="submit" title="Search everything">Search</button>
       </div>
     </form>
   </section>
@@ -83,6 +76,83 @@
   <section class="card notice">
     <p>{{.Error}}</p>
   </section>
+  {{end}}
+
+  {{define "movieShelf"}}
+  <section class="search-section">
+    <h2>Movies</h2>
+    <div class="shelf">
+      {{range .}}
+      <a class="shelf-card" href="/movie?id={{.TMDBID}}" title="{{.Title}}{{if .Year}} ({{.Year}}){{end}}">
+        <div class="shelf-art">
+          {{if .PosterURL}}
+          <img src="{{.PosterURL}}" alt="{{.Title}}" loading="lazy">
+          {{else}}
+          <div class="art-empty art-title">{{.Title}}</div>
+          {{end}}
+          {{if .Year}}<span class="year-badge">{{.Year}}</span>{{end}}
+        </div>
+        <span class="shelf-title">{{.Title}}</span>
+      </a>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+
+  {{define "peopleShelf"}}
+  <section class="search-section">
+    <h2>People</h2>
+    <div class="shelf">
+      {{range .}}
+      <a class="shelf-card" href="/person?id={{.TMDBID}}" title="{{.Name}}">
+        <div class="shelf-art">
+          {{if .PhotoURL}}
+          <img src="{{.PhotoURL}}" alt="{{.Name}}" loading="lazy">
+          {{else}}
+          <div class="art-empty">{{printf "%.1s" .Name}}</div>
+          {{end}}
+        </div>
+        <span class="shelf-title">{{.Name}}</span>
+        {{if .KnownFor}}<span class="shelf-sub">{{.KnownFor}}</span>{{end}}
+      </a>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+
+  {{if or .SearchMovies .SearchPeople .AtMovies}}
+  {{if .PeopleFirst}}
+    {{if .SearchPeople}}{{template "peopleShelf" .SearchPeople}}{{end}}
+    {{if .SearchMovies}}{{template "movieShelf" .SearchMovies}}{{end}}
+  {{else}}
+    {{if .SearchMovies}}{{template "movieShelf" .SearchMovies}}{{end}}
+    {{if .SearchPeople}}{{template "peopleShelf" .SearchPeople}}{{end}}
+  {{end}}
+  {{if .AtMovies}}
+  <section class="search-section">
+    <h2>Filmed at “{{.Query}}”</h2>
+    <div class="shelf">
+      {{range .AtMovies}}
+      {{if .TMDBID}}
+      <a class="shelf-card" href="/movie?id={{.TMDBID}}" title="{{.Title}}{{if .Year}} ({{.Year}}){{end}}">
+      {{else}}
+      <a class="shelf-card" href="{{.IMDBURL}}" title="{{.Title}} on IMDB">
+      {{end}}
+        <div class="shelf-art">
+          {{if .PosterURL}}
+          <img src="{{.PosterURL}}" alt="{{.Title}}" loading="lazy">
+          {{else}}
+          <div class="art-empty art-title">{{.Title}}</div>
+          {{end}}
+          {{if .Year}}<span class="year-badge">{{.Year}}</span>{{end}}
+        </div>
+        <span class="shelf-title">{{.Title}}</span>
+      </a>
+      {{end}}
+    </div>
+    <p class="muted"><a href="/place?q={{.Query}}">See the full filmed-here page →</a></p>
+  </section>
+  {{end}}
   {{end}}
 
   {{with .Movie}}
@@ -139,7 +209,7 @@
         {{end}}
       </div>
       {{else}}
-      <p class="muted">No pins on the map for this one — yet.
+      <p class="muted">No pins on the map for this one yet.
         {{if .IMDBLocationsURL}}<a href="{{.IMDBLocationsURL}}">Check IMDB filming locations ↗</a>{{end}}
       </p>
       {{end}}
@@ -283,7 +353,7 @@
   </section>
   {{end}}
 
-  {{if and (not .Movie) (not .Person) (not .PlaceMovies) (not .Error)}}
+  {{if and (not .Movie) (not .Person) (not .PlaceMovies) (not .SearchMovies) (not .SearchPeople) (not .AtMovies) (not .Error)}}
   <section class="hero-empty">
     <span class="eyebrow">Feature presentation</span>
     <h1>Every frame<br>has a place.</h1>
@@ -363,7 +433,7 @@
 </main>
 
 <footer class="footer">
-  <p class="footer-motto">— cinatlas —</p>
+  <p class="footer-motto">· cinatlas ·</p>
   <nav class="footer-links">
     <a href="/">Search</a>
     <a href="https://github.com/dcadolph/cinatlas">GitHub</a>
