@@ -31,6 +31,18 @@
 <header class="topbar">
   <a class="brand" href="/"><img class="brand-mark" src="/static/logo.png" alt=""><span>cin<span class="brand-dot">•</span>atlas</span></a>
   <span class="tagline">every frame has a place</span>
+  <details class="nav">
+    <summary class="nav-toggle" aria-label="Menu" title="Menu">☰</summary>
+    <nav class="nav-drop">
+      <a href="/">Search</a>
+      <a href="https://github.com/dcadolph/cinatlas">Source on GitHub ↗</a>
+      <a href="https://github.com/dcadolph/cinatlas/blob/main/DESIGN.md">Design doc ↗</a>
+      <a href="https://www.themoviedb.org/">TMDB ↗</a>
+      <a href="https://www.imdb.com/">IMDB ↗</a>
+      <a href="https://www.wikidata.org/">Wikidata ↗</a>
+      <a href="https://www.justwatch.com/">JustWatch ↗</a>
+    </nav>
+  </details>
 </header>
 <div class="marquee-lights" aria-hidden="true"></div>
 
@@ -189,10 +201,12 @@
       {{if .Availability}}
       <div class="watch" data-watch>
         <div class="watch-mine">
+          <p class="watch-mine-lead">Which of these do you already pay for? Type your streaming
+            services and the ones your subscription covers turn green below.</p>
           <label for="my-services">Your services</label>
-          <input type="text" id="my-services" placeholder="e.g. Hulu, Prime, Max"
+          <input type="text" id="my-services" placeholder="Netflix, Hulu, Max, Prime…"
                  autocomplete="off" spellcheck="false">
-          <span class="watch-hint">Saved on this device. Green means you already have it.</span>
+          <span class="watch-hint">Comma-separated. Saved only in this browser, never sent anywhere.</span>
         </div>
         {{$included := false}}{{range .Availability}}{{if .Included}}{{$included = true}}{{end}}{{end}}
         {{$paid := false}}{{range .Availability}}{{if not .Included}}{{$paid = true}}{{end}}{{end}}
@@ -203,7 +217,7 @@
           <li class="provider" data-provider="{{.Provider}}">
             {{if .LogoURL}}<img src="{{.LogoURL}}" alt="" loading="lazy">{{end}}
             <span class="provider-name">{{.Provider}}</span>
-            <span class="provider-kind">{{.Kind}}</span>
+            <span class="provider-kind">{{.KindLabel}}</span>
             <span class="provider-owned">✓ you have this</span>
           </li>
           {{end}}{{end}}
@@ -216,7 +230,7 @@
           <li class="provider provider-paid" data-provider="{{.Provider}}">
             {{if .LogoURL}}<img src="{{.LogoURL}}" alt="" loading="lazy">{{end}}
             <span class="provider-name">{{.Provider}}</span>
-            <span class="provider-kind">{{.Kind}}</span>
+            <span class="provider-kind">{{.KindLabel}}</span>
           </li>
           {{end}}{{end}}
         </ul>
@@ -335,12 +349,29 @@
       <form class="place-controls" action="/person" method="get">
         <input type="hidden" name="id" value="{{.TMDBID}}">
         <label class="control">
+          <span>Role</span>
+          <select name="role" onchange="this.form.submit()">
+            <option value="">Any role</option>
+            <option value="acting"{{if eq $.Role "acting"}} selected{{end}}>As actor</option>
+            <option value="crew"{{if eq $.Role "crew"}} selected{{end}}>As director or crew</option>
+          </select>
+        </label>
+        <label class="control">
+          <span>Type</span>
+          <select name="media" onchange="this.form.submit()">
+            <option value="">Film and TV</option>
+            <option value="movie"{{if eq $.Media "movie"}} selected{{end}}>Movies</option>
+            <option value="tv"{{if eq $.Media "tv"}} selected{{end}}>Television</option>
+          </select>
+        </label>
+        <label class="control">
           <span>Sort</span>
           <select name="sort" onchange="this.form.submit()">
             <option value="">Most famous</option>
-            <option value="az"{{if eq $.Sort "az"}} selected{{end}}>Title A to Z</option>
+            <option value="rating"{{if eq $.Sort "rating"}} selected{{end}}>Highest rated</option>
             <option value="new"{{if eq $.Sort "new"}} selected{{end}}>Newest first</option>
             <option value="old"{{if eq $.Sort "old"}} selected{{end}}>Oldest first</option>
+            <option value="az"{{if eq $.Sort "az"}} selected{{end}}>Title A to Z</option>
           </select>
         </label>
         <label class="control">
@@ -353,6 +384,18 @@
             {{end}}
           </select>
         </label>
+        {{if $.Genres}}
+        <label class="control">
+          <span>Genre</span>
+          <select name="genre" onchange="this.form.submit()">
+            <option value="">All genres</option>
+            {{$g := $.Genre}}
+            {{range $.Genres}}
+            <option value="{{.}}"{{if eq . $g}} selected{{end}}>{{.}}</option>
+            {{end}}
+          </select>
+        </label>
+        {{end}}
         <noscript><button class="btn-ghost" type="submit">Apply</button></noscript>
       </form>
       {{if .Credits}}
