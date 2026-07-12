@@ -164,6 +164,25 @@ func (c *HTTPClient) movieList(ctx context.Context, path string) ([]model.Movie,
 	return movies, nil
 }
 
+// FindByIMDB returns the movie carrying the given IMDB title id, or
+// ErrNotFound when TMDB does not know it.
+func (c *HTTPClient) FindByIMDB(ctx context.Context, imdbID string) (*model.Movie, error) {
+	var out struct {
+		MovieResults []movieDTO `json:"movie_results"`
+	}
+	q := url.Values{"external_source": {"imdb_id"}}
+	if err := c.get(ctx, "/find/"+url.PathEscape(imdbID), q, &out); err != nil {
+		return nil, err
+	}
+	if len(out.MovieResults) == 0 {
+		return nil, ErrNotFound
+	}
+	movie := out.MovieResults[0].toModel()
+	movie.IMDBID = imdbID
+	movie.IMDBURL = imdb.TitleURL(imdbID)
+	return &movie, nil
+}
+
 // SearchPerson returns people matching the query, best match first.
 func (c *HTTPClient) SearchPerson(ctx context.Context, query string) ([]model.Person, error) {
 	var out struct {

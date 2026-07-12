@@ -21,6 +21,7 @@ Usage:
 
 Commands:
   where    Where a movie was filmed
+  at       Movies filmed at a place
   cast     Who is in a movie
   films    What else a person was in or directed
   who      Identify a person and their notable roles

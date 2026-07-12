@@ -1,11 +1,13 @@
 // Package web serves the cinatlas site: one search box over the same movie,
-// person, and filming-location lookups the CLI answers.
+// person, and filming-location lookups the CLI answers, plus an interactive
+// globe of every filming pin.
 package web
 
 import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -17,9 +19,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dcadolph/cinatlas/internal/imdb"
+	"github.com/dcadolph/cinatlas/internal/locate"
 	"github.com/dcadolph/cinatlas/internal/model"
 	"github.com/dcadolph/cinatlas/internal/tmdb"
-	"github.com/dcadolph/cinatlas/internal/wikidata"
 )
 
 //go:embed templates static
@@ -31,45 +34,51 @@ const maxAlternates = 5
 // maxCredits caps filmography rows on a person page.
 const maxCredits = 30
 
+// maxCast caps the cast shelf at top billing, where photos are dependable.
+const maxCast = 14
+
 // maxShelf caps each poster shelf on the home page.
 const maxShelf = 12
 
 // maxSimilar caps the more-like-this row on a movie page.
 const maxSimilar = 6
 
+// maxPlaceMovies caps the filmed-here shelf on a place page.
+const maxPlaceMovies = 18
+
 // Server renders and serves the cinatlas site.
 type Server struct {
 	// tmdb answers movie and person lookups.
 	tmdb *tmdb.HTTPClient
-	// locations answers filming-location lookups.
-	locations wikidata.LocationFinder
-	// tmpl is the parsed page template.
+	// locator answers filming facts in both directions.
+	locator locate.Atlas
+	// tmpl holds the parsed page templates.
 	tmpl *template.Template
 	// log receives request diagnostics.
 	log *slog.Logger
 }
 
 // New returns a Server. It panics on nil dependencies, which are developer
-// errors, and returns an error only when the embedded template fails to parse.
-func New(client *tmdb.HTTPClient, finder wikidata.LocationFinder, log *slog.Logger) (*Server, error) {
+// errors, and returns an error only when the embedded templates fail to parse.
+func New(client *tmdb.HTTPClient, locator locate.Atlas, log *slog.Logger) (*Server, error) {
 	if client == nil {
 		panic("web.New: tmdb client required")
 	}
-	if finder == nil {
-		panic("web.New: location finder required")
+	if locator == nil {
+		panic("web.New: locator required")
 	}
 	if log == nil {
 		panic("web.New: logger required")
 	}
-	tmpl, err := template.New("index.html").Funcs(template.FuncMap{
+	tmpl, err := template.New("site").Funcs(template.FuncMap{
 		"runtime":   formatRuntime,
 		"rating":    formatRating,
 		"shortDate": formatShortDate,
-	}).ParseFS(siteFS, "templates/index.html")
+	}).ParseFS(siteFS, "templates/*.html")
 	if err != nil {
-		return nil, fmt.Errorf("web: parse template: %w", err)
+		return nil, fmt.Errorf("web: parse templates: %w", err)
 	}
-	return &Server{tmdb: client, locations: finder, tmpl: tmpl, log: log}, nil
+	return &Server{tmdb: client, locator: locator, tmpl: tmpl, log: log}, nil
 }
 
 // formatRuntime renders minutes as "1h 38m".
@@ -100,6 +109,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleHome)
 	mux.HandleFunc("GET /movie", s.handleMovie)
 	mux.HandleFunc("GET /person", s.handlePerson)
+	mux.HandleFunc("GET /place", s.handlePlace)
+	mux.HandleFunc("GET /globe", s.handleGlobe)
 	mux.Handle("GET /static/", http.FileServerFS(siteFS))
 	mux.HandleFunc("/", s.handleNotFound)
 	return mux
@@ -107,7 +118,7 @@ func (s *Server) Routes() http.Handler {
 
 // handleNotFound renders a styled 404 for unknown paths.
 func (s *Server) handleNotFound(w http.ResponseWriter, _ *http.Request) {
-	s.render(w, http.StatusNotFound, pageData{
+	s.render(w, http.StatusNotFound, "index.html", pageData{
 		Kind:  "movie",
 		Error: "That reel does not exist. Try a search instead.",
 	})
@@ -129,6 +140,10 @@ type pageData struct {
 	PersonAlternates []model.Person
 	// MoreCredits reports that the filmography was truncated.
 	MoreCredits bool
+	// MoreCast reports that the cast shelf was truncated to top billing.
+	MoreCast bool
+	// FullCreditsURL links the IMDB full cast page when the shelf truncates.
+	FullCreditsURL string
 	// MapURL is the OpenStreetMap embed for the first located place.
 	MapURL template.URL
 	// Trending is the home-page trending wall.
@@ -139,8 +154,39 @@ type pageData struct {
 	Upcoming []model.Movie
 	// Similar is the more-like-this row under a movie.
 	Similar []model.Movie
+	// PlaceName is the place a reverse search matched.
+	PlaceName string
+	// PlaceMovies are the films shot at the searched place.
+	PlaceMovies []model.Movie
 	// Error is a human-readable failure to show instead of a result.
 	Error string
+}
+
+// handlePlace renders the films shot at a searched place.
+func (s *Server) handlePlace(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	data := pageData{Query: query, Kind: "place"}
+	if query == "" {
+		data.Error = "Type a place to find what filmed there."
+		s.render(w, http.StatusNotFound, "index.html", data)
+		return
+	}
+	movies, err := s.locator.At(r.Context(), query, maxPlaceMovies)
+	if err != nil {
+		s.log.Error("place search failed", "place", query, "err", err)
+		data.Error = "Place search failed. Try again."
+		s.render(w, http.StatusBadGateway, "index.html", data)
+		return
+	}
+	if len(movies) == 0 {
+		data.Error = fmt.Sprintf("No films with recorded locations at %q yet. "+
+			"Location data is thin outside film hubs — try a nearby city.", query)
+		s.render(w, http.StatusNotFound, "index.html", data)
+		return
+	}
+	data.PlaceName = query
+	data.PlaceMovies = movies
+	s.render(w, http.StatusOK, "index.html", data)
 }
 
 // handleHome renders the search page over trending, in-theaters, and
@@ -168,7 +214,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	data.Trending = data.Trending[:min(len(data.Trending), maxShelf)]
 	data.NowPlaying = data.NowPlaying[:min(len(data.NowPlaying), maxShelf)]
 	data.Upcoming = futureReleases(data.Upcoming, time.Now(), maxShelf)
-	s.render(w, http.StatusOK, data)
+	s.render(w, http.StatusOK, "index.html", data)
 }
 
 // futureReleases keeps movies releasing on or after today, soonest first,
@@ -186,7 +232,7 @@ func futureReleases(movies []model.Movie, now time.Time, limit int) []model.Movi
 }
 
 // handleMovie resolves a movie by id or query and renders its full card:
-// details, cast, and filming locations with a map.
+// details, top-billed cast, filming locations with a map, and similar titles.
 func (s *Server) handleMovie(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -194,22 +240,21 @@ func (s *Server) handleMovie(w http.ResponseWriter, r *http.Request) {
 
 	id, ok := s.resolveMovieID(ctx, r, &data)
 	if !ok {
-		s.render(w, http.StatusNotFound, data)
+		s.render(w, http.StatusNotFound, "index.html", data)
 		return
 	}
 	movie, err := s.tmdb.Movie(ctx, id)
 	if err != nil {
 		s.log.Error("movie fetch failed", "id", id, "err", err)
 		data.Error = "That movie could not be loaded. Try again."
-		s.render(w, http.StatusBadGateway, data)
+		s.render(w, http.StatusBadGateway, "index.html", data)
 		return
 	}
-	if movie.IMDBID != "" {
-		if locs, err := s.locations.Locations(ctx, movie.IMDBID); err != nil {
-			s.log.Error("location lookup failed", "imdbId", movie.IMDBID, "err", err)
-		} else {
-			movie.Locations = locs
-		}
+	s.attachPlaces(ctx, movie)
+	if len(movie.Cast) > maxCast {
+		movie.Cast = movie.Cast[:maxCast]
+		data.MoreCast = true
+		data.FullCreditsURL = imdb.FullCreditsURL(movie.IMDBID)
 	}
 	if data.Query == "" {
 		data.Query = movie.Title
@@ -221,7 +266,21 @@ func (s *Server) handleMovie(w http.ResponseWriter, r *http.Request) {
 	}
 	data.Movie = movie
 	data.MapURL = mapEmbedURL(movie.Locations)
-	s.render(w, http.StatusOK, data)
+	s.render(w, http.StatusOK, "index.html", data)
+}
+
+// attachPlaces fills filming and setting facts on the movie, best effort.
+func (s *Server) attachPlaces(ctx context.Context, movie *model.Movie) {
+	if movie.IMDBID == "" {
+		return
+	}
+	located, err := s.locator.Locate(ctx, movie.IMDBID)
+	if err != nil {
+		s.log.Error("location lookup failed", "imdbId", movie.IMDBID, "err", err)
+		return
+	}
+	movie.Locations = located.Filming
+	movie.SetIn = located.SetIn
 }
 
 // resolveMovieID picks the movie id from the id parameter or the top search
@@ -265,14 +324,14 @@ func (s *Server) handlePerson(w http.ResponseWriter, r *http.Request) {
 
 	id, ok := s.resolvePersonID(ctx, r, &data)
 	if !ok {
-		s.render(w, http.StatusNotFound, data)
+		s.render(w, http.StatusNotFound, "index.html", data)
 		return
 	}
 	person, err := s.tmdb.Person(ctx, id)
 	if err != nil {
 		s.log.Error("person fetch failed", "id", id, "err", err)
 		data.Error = "That person could not be loaded. Try again."
-		s.render(w, http.StatusBadGateway, data)
+		s.render(w, http.StatusBadGateway, "index.html", data)
 		return
 	}
 	if len(person.Credits) > maxCredits {
@@ -283,7 +342,7 @@ func (s *Server) handlePerson(w http.ResponseWriter, r *http.Request) {
 		data.Query = person.Name
 	}
 	data.Person = person
-	s.render(w, http.StatusOK, data)
+	s.render(w, http.StatusOK, "index.html", data)
 }
 
 // resolvePersonID picks the person id from the id parameter or the top search
@@ -318,12 +377,83 @@ func (s *Server) resolvePersonID(ctx context.Context, r *http.Request, data *pag
 	return results[0].TMDBID, true
 }
 
-// render executes the page template into a buffer so a failure can become a
+// globeData is everything the globe page needs.
+type globeData struct {
+	// Title is the movie title.
+	Title string
+	// Year is the release year, zero when unknown.
+	Year int
+	// MovieURL links back to the movie page.
+	MovieURL string
+	// Pins is the JSON pin array, marshaled server-side from parsed data.
+	Pins template.JS
+}
+
+// globePin is one marker on the globe.
+type globePin struct {
+	// Name is the place label.
+	Name string `json:"name"`
+	// Source names where the fact came from.
+	Source string `json:"source"`
+	// Lat is the decimal latitude.
+	Lat float64 `json:"lat"`
+	// Lon is the decimal longitude.
+	Lon float64 `json:"lon"`
+	// Maps links the place on Google Maps.
+	Maps string `json:"maps"`
+	// Earth links the place on Google Earth.
+	Earth string `json:"earth"`
+}
+
+// handleGlobe renders the interactive globe with every resolved filming pin.
+func (s *Server) handleGlobe(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+	if err != nil {
+		s.handleNotFound(w, r)
+		return
+	}
+	movie, err := s.tmdb.Movie(ctx, id)
+	if err != nil {
+		s.log.Error("movie fetch failed", "id", id, "err", err)
+		s.handleNotFound(w, r)
+		return
+	}
+	s.attachPlaces(ctx, movie)
+
+	pins := make([]globePin, 0, len(movie.Locations))
+	for _, loc := range movie.Locations {
+		if !loc.Resolved {
+			continue
+		}
+		pins = append(pins, globePin{
+			Name: loc.Name, Source: loc.Source,
+			Lat: loc.Latitude, Lon: loc.Longitude,
+			Maps: loc.MapsURL, Earth: loc.EarthURL,
+		})
+	}
+	raw, err := json.Marshal(pins)
+	if err != nil {
+		s.log.Error("pin marshal failed", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	s.render(w, http.StatusOK, "globe.html", globeData{
+		Title:    movie.Title,
+		Year:     movie.Year,
+		MovieURL: "/movie?id=" + strconv.Itoa(movie.TMDBID),
+		// Safe as trusted JS: json.Marshal output of typed data, with HTML
+		// characters escaped by encoding/json.
+		Pins: template.JS(raw),
+	})
+}
+
+// render executes a page template into a buffer so a failure can become a
 // clean 500 instead of a half-written page.
-func (s *Server) render(w http.ResponseWriter, status int, data pageData) {
+func (s *Server) render(w http.ResponseWriter, status int, name string, data any) {
 	var buf bytes.Buffer
-	if err := s.tmpl.Execute(&buf, data); err != nil {
-		s.log.Error("template render failed", "err", err)
+	if err := s.tmpl.ExecuteTemplate(&buf, name, data); err != nil {
+		s.log.Error("template render failed", "template", name, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}

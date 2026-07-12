@@ -38,11 +38,16 @@ export CINATLAS_TMDB_KEY=your_key_here
 
 ```
 cinatlas where "No Country for Old Men"
+cinatlas at "Monument Valley"
 cinatlas cast Heat
 cinatlas films "Denis Villeneuve"
 cinatlas who "Stephen Tobolowsky"
 cinatlas serve
 ```
+
+`at` searches the other direction: name a place, get the films with recorded
+locations there. Coverage mirrors Wikidata, so film hubs are rich and small
+towns can be empty.
 
 `serve` runs the cinatlas website locally on 127.0.0.1:8878 and opens it in your
 browser: one search box, poster and cast cards, filming locations on an embedded
@@ -59,10 +64,22 @@ directory under `cinatlas`. Use `--refresh` to bypass it, `CINATLAS_CACHE_DIR` t
 move it, and `CINATLAS_CACHE_TTL` (a Go duration like `1h` or `72h`) to change
 freshness.
 
+## Where the locations come from
+
+Locations merge from tiers, each labeled by source in the output: Wikidata
+filming locations (structured), Wikipedia mining (street-level places linked
+from the article's filming section), and production countries as the coarse
+fallback. Films with zero pins link the IMDB locations page instead. Where the
+story is *set* shows separately from where it *filmed*.
+
+On the website every movie gets an interactive globe of its pins: the
+"Open the globe" button, or `/globe?id=<tmdb id>`.
+
 ## Data sources
 
-TMDB supplies cast, crew, filmography, and IMDB ids. Wikidata supplies filming
-locations with coordinates through property P915. IMDB is a link target only.
+TMDB supplies cast, crew, filmography, images, and IMDB ids. Wikidata supplies
+filming locations, settings, and coordinates. Wikipedia supplies street-level
+filming places. IMDB is a link target only.
 
 ## Status
 

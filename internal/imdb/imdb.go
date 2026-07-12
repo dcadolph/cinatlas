@@ -35,3 +35,13 @@ func LocationsURL(id string) string {
 	}
 	return title + "locations/"
 }
+
+// FullCreditsURL returns the IMDB full cast and crew page for a title id.
+// It returns an empty string when the id is blank or not a title id.
+func FullCreditsURL(id string) string {
+	title := TitleURL(id)
+	if title == "" {
+		return ""
+	}
+	return title + "fullcredits/"
+}

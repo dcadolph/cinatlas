@@ -1,6 +1,11 @@
 // Package model holds the shared types the cinatlas packages exchange.
 package model
 
+import (
+	"net/url"
+	"strconv"
+)
+
 // Movie is a film with the facts cinatlas reports about it.
 type Movie struct {
 	// TMDBID is the Movie Database identifier.
@@ -33,6 +38,8 @@ type Movie struct {
 	Cast []Person `json:"cast,omitempty"`
 	// Locations lists resolved filming locations.
 	Locations []Location `json:"locations,omitempty"`
+	// SetIn lists where the story takes place, distinct from where it filmed.
+	SetIn []Location `json:"setIn,omitempty"`
 	// IMDBURL is the deep link to the IMDB title page.
 	IMDBURL string `json:"imdbUrl,omitempty"`
 	// IMDBLocationsURL is the deep link to the IMDB filming-locations page.
@@ -77,10 +84,12 @@ type Credit struct {
 	PosterURL string `json:"posterUrl,omitempty"`
 }
 
-// Location is a real-world filming location for a film.
+// Location is a real-world place tied to a film.
 type Location struct {
 	// Name is the human-readable place description.
 	Name string `json:"name"`
+	// Source names where the fact came from: wikidata, wikipedia, or country.
+	Source string `json:"source,omitempty"`
 	// Latitude is the decimal latitude, valid only when Resolved is true.
 	Latitude float64 `json:"latitude,omitempty"`
 	// Longitude is the decimal longitude, valid only when Resolved is true.
@@ -91,4 +100,28 @@ type Location struct {
 	MapsURL string `json:"mapsUrl,omitempty"`
 	// EarthURL links the place on Google Earth.
 	EarthURL string `json:"earthUrl,omitempty"`
+}
+
+// ResolvedLocation builds a Location with coordinates and map links.
+func ResolvedLocation(name, source string, lat, lon float64) Location {
+	pair := strconv.FormatFloat(lat, 'f', -1, 64) + "," + strconv.FormatFloat(lon, 'f', -1, 64)
+	return Location{
+		Name:      name,
+		Source:    source,
+		Latitude:  lat,
+		Longitude: lon,
+		Resolved:  true,
+		MapsURL:   "https://www.google.com/maps/search/?api=1&query=" + pair,
+		EarthURL:  "https://earth.google.com/web/@" + pair + ",1000a,1000d",
+	}
+}
+
+// UnresolvedLocation builds a Location without coordinates, linking a name
+// text search on Google Maps so a known place is never a dead end.
+func UnresolvedLocation(name, source string) Location {
+	return Location{
+		Name:    name,
+		Source:  source,
+		MapsURL: "https://www.google.com/maps/search/?api=1&query=" + url.QueryEscape(name),
+	}
 }

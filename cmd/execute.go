@@ -16,6 +16,8 @@ func Execute(ctx context.Context, args []string) int {
 	switch command {
 	case "where":
 		return runWhere(ctx, rest)
+	case "at":
+		return runAt(ctx, rest)
 	case "cast":
 		return runCast(ctx, rest)
 	case "films":

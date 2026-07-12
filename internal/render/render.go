@@ -28,7 +28,7 @@ func Cast(w io.Writer, m model.Movie) {
 	writeIMDB(w, m.IMDBURL)
 }
 
-// Where writes a movie's filming locations with map links.
+// Where writes a movie's filming locations and settings with map links.
 func Where(w io.Writer, m model.Movie) {
 	writeTitle(w, m)
 	if len(m.Locations) == 0 {
@@ -39,14 +39,40 @@ func Where(w io.Writer, m model.Movie) {
 	} else {
 		fmt.Fprintln(w, "Filmed in:")
 		for _, loc := range m.Locations {
+			label := loc.Name
+			if loc.Source != "" {
+				label += " [" + loc.Source + "]"
+			}
 			if loc.MapsURL != "" {
-				fmt.Fprintf(w, "  %s  %s\n", loc.Name, loc.MapsURL)
+				fmt.Fprintf(w, "  %s  %s\n", label, loc.MapsURL)
 			} else {
-				fmt.Fprintf(w, "  %s\n", loc.Name)
+				fmt.Fprintf(w, "  %s\n", label)
 			}
 		}
 	}
+	if len(m.SetIn) > 0 {
+		fmt.Fprintln(w, "Set in:")
+		for _, loc := range m.SetIn {
+			fmt.Fprintf(w, "  %s\n", loc.Name)
+		}
+	}
 	writeIMDB(w, m.IMDBURL)
+}
+
+// FilmsAt writes the movies filmed at a place, newest first.
+func FilmsAt(w io.Writer, place string, movies []model.Movie) {
+	fmt.Fprintf(w, "Filmed at %s:\n", place)
+	for _, m := range movies {
+		year := "----"
+		if m.Year > 0 {
+			year = strconv.Itoa(m.Year)
+		}
+		if m.IMDBURL != "" {
+			fmt.Fprintf(w, "  %s  %s  %s\n", year, m.Title, m.IMDBURL)
+		} else {
+			fmt.Fprintf(w, "  %s  %s\n", year, m.Title)
+		}
+	}
 }
 
 // Person writes a person's name, notable department, and filmography.

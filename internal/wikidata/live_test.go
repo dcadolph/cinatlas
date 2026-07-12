@@ -11,42 +11,41 @@ import (
 	"github.com/dcadolph/cinatlas/internal/httpcache"
 )
 
-// TestLiveLocations exercises the real Wikidata endpoint through the disk cache.
+// TestLiveResolve exercises the real Wikidata endpoint through the disk cache.
 // It is excluded from normal runs. Run with: go test -tags live ./internal/wikidata
-func TestLiveLocations(t *testing.T) {
+func TestLiveResolve(t *testing.T) {
 	t.Parallel()
 	client := &http.Client{
 		Timeout:   30 * time.Second,
 		Transport: httpcache.New(t.TempDir(), time.Hour),
 	}
-	finder := New(WithHTTPClient(client))
+	resolver := New(WithHTTPClient(client))
 	ctx := context.Background()
 
 	start := time.Now()
-	first, err := finder.Locations(ctx, "tt0116282") // Fargo.
+	first, err := resolver.Resolve(ctx, "tt0116282") // Fargo.
 	if err != nil {
-		t.Fatalf("live locations: %v", err)
+		t.Fatalf("live resolve: %v", err)
 	}
 	cold := time.Since(start)
-	if len(first) == 0 {
-		t.Fatal("live locations: no filming locations for Fargo")
+	if len(first.Filming) == 0 {
+		t.Fatal("live resolve: no filming locations for Fargo")
+	}
+	if first.ArticleTitle == "" {
+		t.Error("live resolve: no Wikipedia article for Fargo")
 	}
 
 	start = time.Now()
-	second, err := finder.Locations(ctx, "tt0116282")
+	second, err := resolver.Resolve(ctx, "tt0116282")
 	if err != nil {
-		t.Fatalf("cached locations: %v", err)
+		t.Fatalf("cached resolve: %v", err)
 	}
 	warm := time.Since(start)
-	if len(second) != len(first) {
-		t.Errorf("cached count = %d, want %d", len(second), len(first))
+	if len(second.Filming) != len(first.Filming) {
+		t.Errorf("cached count = %d, want %d", len(second.Filming), len(first.Filming))
 	}
 
-	t.Logf("cold %v, warm %v, %d locations", cold.Round(time.Millisecond), warm.Round(time.Millisecond), len(first))
-	for i, loc := range first {
-		if i == 3 {
-			break
-		}
-		t.Logf("  %s resolved=%v %s", loc.Name, loc.Resolved, loc.MapsURL)
-	}
+	t.Logf("cold %v, warm %v, filming %d, set-in %d, countries %d, article %q",
+		cold.Round(time.Millisecond), warm.Round(time.Millisecond),
+		len(first.Filming), len(first.SetIn), len(first.Countries), first.ArticleTitle)
 }

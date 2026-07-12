@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — the globe — cinatlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@1,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
+<style>
+  :root {
+    --bg: #08090c;
+    --gold: #e8b13c;
+    --gold-line: rgba(232, 177, 60, 0.45);
+    --fg: #f0efec;
+    --dim: #a3a4ab;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, sans-serif; }
+  .globe-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 20;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding: 14px 22px;
+    background: linear-gradient(180deg, rgba(8, 9, 12, 0.92), rgba(8, 9, 12, 0));
+    pointer-events: none;
+  }
+  .globe-bar a, .globe-bar span { pointer-events: auto; }
+  .brand {
+    font-family: "Bebas Neue", sans-serif;
+    font-size: 26px;
+    color: var(--fg);
+    text-decoration: none;
+    text-shadow: 0 0 20px rgba(232, 177, 60, 0.25);
+  }
+  .brand b { color: var(--gold); font-weight: 400; }
+  .globe-title {
+    font-family: "Playfair Display", Georgia, serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--dim);
+  }
+  .globe-title a { color: var(--gold); text-decoration: none; }
+  .globe-title a:hover { text-decoration: underline; }
+  #map { position: fixed; inset: 0; }
+  .pin-popup { font: 13px/1.5 -apple-system, sans-serif; }
+  .pin-popup b { display: block; margin-bottom: 4px; }
+  .pin-popup a { color: #a87718; margin-right: 10px; }
+  .maplibregl-popup-content { border-radius: 10px; }
+  .empty-note {
+    position: fixed;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 15;
+    color: var(--dim);
+    background: rgba(8, 9, 12, 0.85);
+    border: 1px solid var(--gold-line);
+    border-radius: 12px;
+    padding: 16px 22px;
+  }
+</style>
+</head>
+<body>
+
+<header class="globe-bar">
+  <a class="brand" href="/">cin<b>•</b>atlas</a>
+  <span class="globe-title">{{.Title}}{{if .Year}} ({{.Year}}){{end}} — <a href="{{.MovieURL}}">back to the film</a></span>
+</header>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+<script>
+  const PINS = {{.Pins}};
+
+  const map = new maplibregl.Map({
+    container: "map",
+    style: {
+      version: 8,
+      sources: {
+        carto: {
+          type: "raster",
+          tiles: [
+            "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+            "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+            "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+          ],
+          tileSize: 256,
+          attribution: "© OpenStreetMap contributors © CARTO"
+        }
+      },
+      layers: [{ id: "carto", type: "raster", source: "carto" }]
+    },
+    center: [0, 20],
+    zoom: 1.6,
+    attributionControl: { compact: true }
+  });
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
+
+  map.on("style.load", () => {
+    try {
+      map.setProjection({ type: "globe" });
+    } catch (_) {
+      // Older engines fall back to the flat map.
+    }
+  });
+
+  for (const pin of PINS) {
+    const popup = document.createElement("div");
+    popup.className = "pin-popup";
+    const name = document.createElement("b");
+    name.textContent = pin.name;
+    popup.appendChild(name);
+    for (const [label, href] of [["Maps ↗", pin.maps], ["Earth ↗", pin.earth]]) {
+      if (!href) continue;
+      const a = document.createElement("a");
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = label;
+      popup.appendChild(a);
+    }
+    new maplibregl.Marker({ color: "#e8b13c" })
+      .setLngLat([pin.lon, pin.lat])
+      .setPopup(new maplibregl.Popup({ offset: 22 }).setDOMContent(popup))
+      .addTo(map);
+  }
+
+  if (PINS.length > 1) {
+    const bounds = new maplibregl.LngLatBounds();
+    for (const pin of PINS) bounds.extend([pin.lon, pin.lat]);
+    map.fitBounds(bounds, { padding: 90, maxZoom: 8, duration: 1600 });
+  } else if (PINS.length === 1) {
+    map.flyTo({ center: [PINS[0].lon, PINS[0].lat], zoom: 5.5, duration: 1600 });
+  } else {
+    const note = document.createElement("div");
+    note.className = "empty-note";
+    note.textContent = "No pinned coordinates for this film yet.";
+    document.body.appendChild(note);
+  }
+</script>
+
+</body>
+</html>

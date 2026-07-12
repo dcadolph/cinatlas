@@ -475,6 +475,25 @@ h2::after {
 .loc-name::before { content: "📍 "; }
 .loc-links { display: flex; gap: 14px; font-size: 13px; white-space: nowrap; }
 
+.loc-src {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 7px;
+  vertical-align: 2px;
+}
+
+.map-side { display: flex; flex-direction: column; gap: 12px; }
+.globe-btn { text-align: center; text-decoration: none; }
+.globe-btn:hover { text-decoration: none; }
+
+.setin { margin-bottom: 4px; }
+
 .map-frame {
   border-radius: 12px;
   overflow: hidden;

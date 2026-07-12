@@ -10,11 +10,36 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dcadolph/cinatlas/internal/locate"
 	"github.com/dcadolph/cinatlas/internal/logutil"
 	"github.com/dcadolph/cinatlas/internal/model"
 	"github.com/dcadolph/cinatlas/internal/tmdb"
-	"github.com/dcadolph/cinatlas/internal/wikidata"
 )
+
+// fakeAtlas answers fixed place facts in both directions.
+type fakeAtlas struct{}
+
+// Locate returns fixed filming and setting facts.
+func (fakeAtlas) Locate(_ context.Context, _ string) (*locate.Located, error) {
+	return &locate.Located{
+		Filming: []model.Location{
+			model.ResolvedLocation("Los Angeles", "wikidata", 34.05, -118.24),
+			model.ResolvedLocation("Venice Beach", "wikipedia", 33.985, -118.47),
+		},
+		SetIn: []model.Location{model.UnresolvedLocation("Los Angeles", "wikidata")},
+	}, nil
+}
+
+// At returns one fixed film for any place.
+func (fakeAtlas) At(_ context.Context, place string, _ int) ([]model.Movie, error) {
+	if place == "nowhere" {
+		return nil, nil
+	}
+	return []model.Movie{{
+		TMDBID: 1, Title: "Heat", Year: 1995,
+		PosterURL: "https://image.tmdb.org/t/p/w342/heat.jpg",
+	}}, nil
+}
 
 // newSite returns a test site backed by a fake TMDB and a fixed location finder.
 func newSite(t *testing.T) *httptest.Server {
@@ -71,13 +96,7 @@ func newSite(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatalf("tmdb.New: %v", err)
 	}
-	finder := wikidata.LocationFinderFunc(func(_ context.Context, _ string) ([]model.Location, error) {
-		return []model.Location{{
-			Name: "Los Angeles", Latitude: 34.05, Longitude: -118.24, Resolved: true,
-			MapsURL: "https://maps.example/la",
-		}}, nil
-	})
-	server, err := New(client, finder, logutil.New("error"))
+	server, err := New(client, fakeAtlas{}, logutil.New("error"))
 	if err != nil {
 		t.Fatalf("web.New: %v", err)
 	}
@@ -117,11 +136,14 @@ func TestPages(t *testing.T) {
 			"In theaters", "Theater Feature",
 			"Coming soon", "Future Film",
 		},
-	}, { // Test 1: Movie page renders hero, chips, cast, locations, map, similar, alternates.
+	}, { // Test 1: Movie page renders hero, chips, cast, locations, map, globe
+		// link, set-in, source badges, similar, and alternates.
 		Path: "/movie?q=heat", WantStatus: http.StatusOK,
 		WantContains: []string{
 			"Heat", "1995", "Michael Mann", "Al Pacino", "Vincent Hanna",
-			"Los Angeles", "openstreetmap.org", "image.tmdb.org/t/p/w342/heat.jpg",
+			"Los Angeles", "Venice Beach", "wikipedia", "openstreetmap.org",
+			"Open the globe", "/globe?id=1", "Set in",
+			"image.tmdb.org/t/p/w342/heat.jpg",
 			"image.tmdb.org/t/p/w1280/heat-wide.jpg", "A Los Angeles crime saga.",
 			"2h 50m", "★ 7.9", "Crime",
 			"More like this", "Companion Piece",
@@ -145,6 +167,18 @@ func TestPages(t *testing.T) {
 	}, { // Test 6: Unknown paths render the styled 404.
 		Path: "/bogus", WantStatus: http.StatusNotFound,
 		WantContains: []string{"That reel does not exist"},
+	}, { // Test 7: Globe page renders every resolved pin for the map script.
+		Path: "/globe?id=1", WantStatus: http.StatusOK,
+		WantContains: []string{
+			"maplibre-gl", "Los Angeles", "Venice Beach",
+			"back to the film", "/movie?id=1",
+		},
+	}, { // Test 8: Place page renders the filmed-here shelf.
+		Path: "/place?q=los+angeles", WantStatus: http.StatusOK,
+		WantContains: []string{"Filmed here", "los angeles", "Heat", "/movie?id=1"},
+	}, { // Test 9: Place with no recorded films renders the honest empty state.
+		Path: "/place?q=nowhere", WantStatus: http.StatusNotFound,
+		WantContains: []string{"No films with recorded locations"},
 	}}
 	for testNum, test := range tests {
 		t.Run(test.Path, func(t *testing.T) {

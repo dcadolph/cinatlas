@@ -11,7 +11,6 @@ import (
 
 	"github.com/dcadolph/cinatlas/internal/logutil"
 	"github.com/dcadolph/cinatlas/internal/web"
-	"github.com/dcadolph/cinatlas/internal/wikidata"
 )
 
 // runServe starts the cinatlas website locally and opens it in the browser.
@@ -30,8 +29,7 @@ func runServe(ctx context.Context, args []string) int {
 	if code != CodeOK {
 		return code
 	}
-	finder := wikidata.New(wikidata.WithHTTPClient(httpClient))
-	server, err := web.New(client, finder, log)
+	server, err := web.New(client, newLocator(httpClient, client), log)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "cinatlas serve:", err)
 		return CodeError

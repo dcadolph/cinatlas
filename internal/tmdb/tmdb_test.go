@@ -173,6 +173,33 @@ func TestRecommendations(t *testing.T) {
 	}
 }
 
+// TestFindByIMDB checks IMDB id resolution to a movie with links set.
+func TestFindByIMDB(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, map[string]string{
+		"/find/tt0113277": `{"movie_results":[{"id":1,"title":"Heat",` +
+			`"release_date":"1995-12-15","poster_path":"/heat.jpg"}]}`,
+		"/find/tt9999999": `{"movie_results":[]}`,
+	})
+	c := newClient(t, srv)
+	got, err := c.FindByIMDB(context.Background(), "tt0113277")
+	if err != nil {
+		t.Fatalf("FindByIMDB: %v", err)
+	}
+	want := &model.Movie{
+		TMDBID: 1, IMDBID: "tt0113277", Title: "Heat", Year: 1995,
+		ReleaseDate: "1995-12-15",
+		PosterURL:   "https://image.tmdb.org/t/p/w342/heat.jpg",
+		IMDBURL:     "https://www.imdb.com/title/tt0113277/",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("FindByIMDB\n got %+v\nwant %+v", got, want)
+	}
+	if _, err := c.FindByIMDB(context.Background(), "tt9999999"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("FindByIMDB(unknown) err = %v, want ErrNotFound", err)
+	}
+}
+
 // TestMovieNotFound checks that a 404 maps to ErrNotFound.
 func TestMovieNotFound(t *testing.T) {
 	t.Parallel()

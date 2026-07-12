@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/dcadolph/cinatlas/internal/httpcache"
+	"github.com/dcadolph/cinatlas/internal/locate"
+	"github.com/dcadolph/cinatlas/internal/wikidata"
+	"github.com/dcadolph/cinatlas/internal/wikipedia"
 )
 
 // httpTimeout bounds every API request, cached or not.
@@ -19,6 +22,13 @@ const defaultCacheTTL = 24 * time.Hour
 func newHTTPClient(opt options) *http.Client {
 	transport := httpcache.New(cacheDir(), cacheTTL(), httpcache.WithRefresh(opt.Refresh))
 	return &http.Client{Timeout: httpTimeout, Transport: transport}
+}
+
+// newLocator returns the merged place-facts service over the shared HTTP
+// client and TMDB client.
+func newLocator(h *http.Client, finder locate.IMDBFinder) *locate.Service {
+	wd := wikidata.New(wikidata.WithHTTPClient(h))
+	return locate.New(wd, wd, wikipedia.New(wikipedia.WithHTTPClient(h)), finder)
 }
 
 // cacheDir returns the response cache directory, honoring the env override.

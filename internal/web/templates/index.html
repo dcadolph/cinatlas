@@ -47,8 +47,10 @@
                   title="Search movies">Movie</button>
           <button class="pill{{if eq .Kind "person"}} active{{end}}" type="submit" formaction="/person"
                   title="Search actors and directors">Person</button>
+          <button class="pill{{if eq .Kind "place"}} active{{end}}" type="submit" formaction="/place"
+                  title="Find films shot at a place">Place</button>
         </div>
-        <button class="btn-primary" type="submit" title="Search {{.Kind}}s">Search</button>
+        <button class="btn-primary" type="submit" title="Search">Search</button>
       </div>
     </form>
   </section>
@@ -119,7 +121,7 @@
         <ul class="locations">
           {{range .Locations}}
           <li>
-            <span class="loc-name">{{.Name}}</span>
+            <span class="loc-name">{{.Name}}{{if .Source}} <em class="loc-src">{{.Source}}</em>{{end}}</span>
             <span class="loc-links">
               {{if .MapsURL}}<a href="{{.MapsURL}}">Maps ↗</a>{{end}}
               {{if .EarthURL}}<a href="{{.EarthURL}}">Earth ↗</a>{{end}}
@@ -128,8 +130,11 @@
           {{end}}
         </ul>
         {{if $.MapURL}}
-        <div class="map-frame">
-          <iframe src="{{$.MapURL}}" loading="lazy" title="Filming location map"></iframe>
+        <div class="map-side">
+          <div class="map-frame">
+            <iframe src="{{$.MapURL}}" loading="lazy" title="Filming location map"></iframe>
+          </div>
+          <a class="btn-primary globe-btn" href="/globe?id={{.TMDBID}}">Open the globe 🌍</a>
         </div>
         {{end}}
       </div>
@@ -137,6 +142,15 @@
       <p class="muted">No pins on the map for this one — yet.
         {{if .IMDBLocationsURL}}<a href="{{.IMDBLocationsURL}}">Check IMDB filming locations ↗</a>{{end}}
       </p>
+      {{end}}
+
+      {{if .SetIn}}
+      <h2>Set in</h2>
+      <div class="alternates setin">
+        {{range .SetIn}}
+        <a class="alt-pill" href="{{.MapsURL}}"><span>{{.Name}}</span></a>
+        {{end}}
+      </div>
       {{end}}
 
       {{if .Cast}}
@@ -156,6 +170,7 @@
         </a>
         {{end}}
       </div>
+      {{if $.MoreCast}}<p class="muted">Top billing shown.{{if $.FullCreditsURL}} <a href="{{$.FullCreditsURL}}">Full cast and crew on IMDB ↗</a>{{end}}</p>{{end}}
       {{end}}
 
       {{if $.Similar}}
@@ -231,7 +246,44 @@
   </section>
   {{end}}
 
-  {{if and (not .Movie) (not .Person) (not .Error)}}
+  {{if .PlaceMovies}}
+  <section class="result">
+    <div class="hero hero-plain">
+      <div class="hero-scrim">
+        <div class="hero-inner">
+          <div class="hero-text">
+            <span class="eyebrow">Filmed here</span>
+            <h1>{{.PlaceName}}</h1>
+            <p class="tagline-line">Every film with a recorded location at this place.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="result-body">
+      <div class="shelf">
+        {{range .PlaceMovies}}
+        {{if .TMDBID}}
+        <a class="shelf-card" href="/movie?id={{.TMDBID}}" title="{{.Title}}{{if .Year}} ({{.Year}}){{end}}">
+        {{else}}
+        <a class="shelf-card" href="{{.IMDBURL}}" title="{{.Title}} on IMDB">
+        {{end}}
+          <div class="shelf-art">
+            {{if .PosterURL}}
+            <img src="{{.PosterURL}}" alt="{{.Title}}" loading="lazy">
+            {{else}}
+            <div class="art-empty art-title">{{.Title}}</div>
+            {{end}}
+            {{if .Year}}<span class="year-badge">{{.Year}}</span>{{end}}
+          </div>
+          <span class="shelf-title">{{.Title}}</span>
+        </a>
+        {{end}}
+      </div>
+    </div>
+  </section>
+  {{end}}
+
+  {{if and (not .Movie) (not .Person) (not .PlaceMovies) (not .Error)}}
   <section class="hero-empty">
     <span class="eyebrow">Feature presentation</span>
     <h1>Every frame<br>has a place.</h1>
@@ -241,6 +293,7 @@
       <a class="alt-pill" href="/movie?q=Fargo"><span>where was <strong>Fargo</strong> filmed</span></a>
       <a class="alt-pill" href="/movie?q=Heat"><span>who is in <strong>Heat</strong></span></a>
       <a class="alt-pill" href="/person?q=Denis+Villeneuve"><span>what has <strong>Villeneuve</strong> made</span></a>
+      <a class="alt-pill" href="/place?q=Monument+Valley"><span>what filmed at <strong>Monument Valley</strong></span></a>
     </div>
   </section>
 

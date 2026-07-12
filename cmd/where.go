@@ -9,10 +9,9 @@ import (
 	"github.com/dcadolph/cinatlas/internal/logutil"
 	"github.com/dcadolph/cinatlas/internal/model"
 	"github.com/dcadolph/cinatlas/internal/render"
-	"github.com/dcadolph/cinatlas/internal/wikidata"
 )
 
-// runWhere reports where a movie was filmed.
+// runWhere reports where a movie was filmed and where its story is set.
 func runWhere(ctx context.Context, args []string) int {
 	var opt options
 	fs := newFlagSet("where", &opt)
@@ -38,13 +37,11 @@ func runWhere(ctx context.Context, args []string) int {
 	}
 	if movie.IMDBID == "" {
 		log.Warn("no imdb id for title, cannot resolve locations", "title", movie.Title)
+	} else if located, err := newLocator(httpClient, client).Locate(ctx, movie.IMDBID); err != nil {
+		log.Error("location lookup failed", "err", err)
 	} else {
-		finder := wikidata.New(wikidata.WithHTTPClient(httpClient))
-		if locs, err := finder.Locations(ctx, movie.IMDBID); err != nil {
-			log.Error("location lookup failed", "err", err)
-		} else {
-			movie.Locations = locs
-		}
+		movie.Locations = located.Filming
+		movie.SetIn = located.SetIn
 	}
 	result := whereResult(movie)
 	if opt.JSON {
@@ -57,11 +54,13 @@ func runWhere(ctx context.Context, args []string) int {
 // whereResult is the location-focused view the where command prints.
 func whereResult(m *model.Movie) model.Movie {
 	return model.Movie{
-		TMDBID:    m.TMDBID,
-		IMDBID:    m.IMDBID,
-		Title:     m.Title,
-		Year:      m.Year,
-		Locations: m.Locations,
-		IMDBURL:   m.IMDBURL,
+		TMDBID:           m.TMDBID,
+		IMDBID:           m.IMDBID,
+		Title:            m.Title,
+		Year:             m.Year,
+		Locations:        m.Locations,
+		SetIn:            m.SetIn,
+		IMDBURL:          m.IMDBURL,
+		IMDBLocationsURL: m.IMDBLocationsURL,
 	}
 }
