@@ -6,7 +6,7 @@ import (
 )
 
 // Version is the build version. Override at link time with -ldflags.
-var Version = "0.1.0-dev"
+var Version = "0.1.0"
 
 // runVersion prints the version to stdout.
 func runVersion() int {
