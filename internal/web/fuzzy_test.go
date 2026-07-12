@@ -12,11 +12,11 @@ func TestCollapseDoubles(t *testing.T) {
 		In         string
 		WantResult string
 	}{
-		{In: "Carrell", WantResult: "Carel"},   // Test 0: Doubled r and l.
-		{In: "Steve", WantResult: "Steve"},      // Test 1: No doubles.
-		{In: "", WantResult: ""},                // Test 2: Empty.
-		{In: "aa bb", WantResult: "a b"},        // Test 3: Doubles across words.
-		{In: "OoO", WantResult: "O"},            // Test 4: Case-insensitive run.
+		{In: "Carrell", WantResult: "Carel"}, // Test 0: Doubled r and l.
+		{In: "Steve", WantResult: "Steve"},   // Test 1: No doubles.
+		{In: "", WantResult: ""},             // Test 2: Empty.
+		{In: "aa bb", WantResult: "a b"},     // Test 3: Doubles across words.
+		{In: "OoO", WantResult: "O"},         // Test 4: Case-insensitive run.
 	}
 	for testNum, test := range tests {
 		t.Run(fmt.Sprintf("test %d", testNum), func(t *testing.T) {
@@ -36,11 +36,11 @@ func TestRelaxQuery(t *testing.T) {
 		WantHas  string // A variant that must appear.
 		WantNone bool   // No variants expected at all.
 	}{
-		{In: "Steve Carrell", WantHas: "Steve Carel"},  // Test 0: Collapse fixes doubled letters.
-		{In: "Villenueve", WantHas: "Villen"},          // Test 1: Prefix truncation reaches a match.
-		{In: "Scorseze", WantHas: "Scorse"},            // Test 2: Prefix truncation past the typo.
-		{In: "", WantNone: true},                       // Test 3: Empty query.
-		{In: "  ", WantNone: true},                     // Test 4: Whitespace only.
+		{In: "Steve Carrell", WantHas: "Steve Carel"}, // Test 0: Collapse fixes doubled letters.
+		{In: "Villenueve", WantHas: "Villen"},         // Test 1: Prefix truncation reaches a match.
+		{In: "Scorseze", WantHas: "Scorse"},           // Test 2: Prefix truncation past the typo.
+		{In: "", WantNone: true},                      // Test 3: Empty query.
+		{In: "  ", WantNone: true},                    // Test 4: Whitespace only.
 	}
 	for testNum, test := range tests {
 		t.Run(fmt.Sprintf("test %d", testNum), func(t *testing.T) {
