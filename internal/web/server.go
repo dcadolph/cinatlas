@@ -168,6 +168,14 @@ type pageData struct {
 	Decade int
 	// Decades lists the decades available to filter by.
 	Decades []int
+	// Media is the active medium filter on a person: movie, tv, or empty.
+	Media string
+	// Role is the active role filter on a person: acting, crew, or empty.
+	Role string
+	// Genre is the active genre filter on a person, empty for all.
+	Genre string
+	// Genres lists the genres available to filter a person's credits by.
+	Genres []string
 	// SearchMovies are unified-search movie matches in relevance order.
 	SearchMovies []model.Movie
 	// SearchPeople are unified-search person matches in relevance order.
@@ -427,9 +435,18 @@ func (s *Server) handlePerson(w http.ResponseWriter, r *http.Request) {
 	}
 	data.Sort = r.URL.Query().Get("sort")
 	data.Decade, _ = strconv.Atoi(r.URL.Query().Get("decade"))
+	data.Media = r.URL.Query().Get("media")
+	data.Role = r.URL.Query().Get("role")
+	data.Genre = r.URL.Query().Get("genre")
+	// Filter options come from the full credit set so a choice never hides the
+	// others.
 	data.Decades = model.CreditDecades(person.Credits)
+	data.Genres = model.CreditGenres(person.Credits)
 
-	credits := model.FilterCreditsByDecade(person.Credits, data.Decade)
+	credits := model.FilterCreditsByMedia(person.Credits, data.Media)
+	credits = model.FilterCreditsByRole(credits, data.Role)
+	credits = model.FilterCreditsByGenre(credits, data.Genre)
+	credits = model.FilterCreditsByDecade(credits, data.Decade)
 	model.SortCredits(credits, data.Sort)
 	total := len(credits)
 	data.Page = page
