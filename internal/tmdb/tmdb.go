@@ -288,9 +288,29 @@ func (c *HTTPClient) Person(ctx context.Context, id int) (*model.Person, error) 
 		return nil, err
 	}
 	person := dto.toModel()
-	person.Credits = dto.CombinedCredits.creditModels()
+	person.Credits = dto.CombinedCredits.creditModels(c.genreMap(ctx))
 	person.IMDBURL = imdb.NameURL(person.IMDBID)
 	return &person, nil
+}
+
+// genreMap fetches the movie and television genre lists and merges them into
+// one id-to-name map. It is best effort: on any error it returns an empty map
+// so a person still loads, just without genre labels. Responses cache, so the
+// two extra calls are paid once.
+func (c *HTTPClient) genreMap(ctx context.Context) map[int]string {
+	out := make(map[int]string)
+	for _, path := range []string{"/genre/movie/list", "/genre/tv/list"} {
+		var list struct {
+			Genres []genreDTO `json:"genres"`
+		}
+		if err := c.get(ctx, path, nil, &list); err != nil {
+			continue
+		}
+		for _, g := range list.Genres {
+			out[g.ID] = g.Name
+		}
+	}
+	return out
 }
 
 // get performs a GET against the API and decodes the JSON body into out.
@@ -348,37 +368,45 @@ type providersDTO struct {
 	Results map[string]regionProvidersDTO `json:"results"`
 }
 
-// forRegion returns the availability entries for the region, best access kind
-// first, and the JustWatch deep link. Both are empty when the region has none.
+// forRegion returns the availability entries for the region and the watch-page
+// link. Each provider appears once, its kinds merged and ordered best first, so
+// a service that both rents and sells shows as one entry. Both are empty when
+// the region has no data.
 func (p providersDTO) forRegion(region string) ([]model.Availability, string) {
 	region = strings.ToUpper(strings.TrimSpace(region))
 	r, ok := p.Results[region]
 	if !ok {
 		return nil, ""
 	}
-	av := make([]model.Availability, 0)
-	av = appendProviders(av, r.Flatrate, model.AccessStream)
-	av = appendProviders(av, r.Free, model.AccessFree)
-	av = appendProviders(av, r.Ads, model.AccessAds)
-	av = appendProviders(av, r.Rent, model.AccessRent)
-	av = appendProviders(av, r.Buy, model.AccessBuy)
-	model.SortAvailability(av)
-	if len(av) == 0 {
+	// byProvider dedupes on name; order preserves first-seen, and the tiers
+	// are visited best-kind first, so each entry's kinds land best first.
+	byProvider := make(map[string]*model.Availability)
+	order := make([]string, 0)
+	add := func(tier []providerDTO, kind string) {
+		for _, prov := range tier {
+			entry, ok := byProvider[prov.Name]
+			if !ok {
+				entry = &model.Availability{Provider: prov.Name, LogoURL: imageURL("w92", prov.LogoPath)}
+				byProvider[prov.Name] = entry
+				order = append(order, prov.Name)
+			}
+			entry.Kinds = append(entry.Kinds, kind)
+		}
+	}
+	add(r.Flatrate, model.AccessStream)
+	add(r.Free, model.AccessFree)
+	add(r.Ads, model.AccessAds)
+	add(r.Rent, model.AccessRent)
+	add(r.Buy, model.AccessBuy)
+	if len(order) == 0 {
 		return nil, r.Link
 	}
-	return av, r.Link
-}
-
-// appendProviders maps one access tier's providers onto the running list.
-func appendProviders(av []model.Availability, tier []providerDTO, kind string) []model.Availability {
-	for _, p := range tier {
-		av = append(av, model.Availability{
-			Provider: p.Name,
-			Kind:     kind,
-			LogoURL:  imageURL("w92", p.LogoPath),
-		})
+	av := make([]model.Availability, 0, len(order))
+	for _, name := range order {
+		av = append(av, *byProvider[name])
 	}
-	return av
+	model.SortAvailability(av)
+	return av, r.Link
 }
 
 // regionProvidersDTO is the watch availability for one country, split by the
@@ -398,8 +426,9 @@ type providerDTO struct {
 	LogoPath string `json:"logo_path"`
 }
 
-// genreDTO is one genre tag on a movie.
+// genreDTO is one genre tag, carrying the id used by credit genre lists.
 type genreDTO struct {
+	ID   int    `json:"id"`
 	Name string `json:"name"`
 }
 
@@ -499,9 +528,11 @@ type combinedCredited struct {
 
 // creditModels flattens acting and crew credits into one list ordered by
 // fame, merging repeat credits on the same title into one entry with joined
-// roles. Self appearances on talk shows, documentaries, and archive footage
-// are dropped: they are not the person's work.
-func (c combinedCredited) creditModels() []model.Credit {
+// roles and both the acting and crew flags set as appropriate. The genres map
+// turns TMDB genre ids into names. Self appearances on talk shows,
+// documentaries, and archive footage are dropped: they are not the person's
+// work.
+func (c combinedCredited) creditModels(genres map[int]string) []model.Credit {
 	credits := make([]model.Credit, 0, len(c.Cast)+len(c.Crew))
 	index := make(map[string]int, len(c.Cast)+len(c.Crew))
 	add := func(credit model.Credit) {
@@ -518,6 +549,11 @@ func (c combinedCredited) creditModels() []model.Credit {
 			if merged.Character == "" {
 				merged.Character = credit.Character
 			}
+			merged.Acting = merged.Acting || credit.Acting
+			merged.Crew = merged.Crew || credit.Crew
+			if len(merged.Genres) == 0 {
+				merged.Genres = credit.Genres
+			}
 			return
 		}
 		index[key] = len(credits)
@@ -527,10 +563,14 @@ func (c combinedCredited) creditModels() []model.Credit {
 		if m.selfAppearance() {
 			continue
 		}
-		add(m.toModel())
+		credit := m.toModel(genres)
+		credit.Acting = true
+		add(credit)
 	}
 	for _, m := range c.Crew {
-		add(m.toModel())
+		credit := m.toModel(genres)
+		credit.Crew = true
+		add(credit)
 	}
 	sort.SliceStable(credits, func(i, j int) bool {
 		if credits[i].Votes != credits[j].Votes {
@@ -553,12 +593,15 @@ type personCreditDTO struct {
 	FirstAirDate string  `json:"first_air_date"`
 	PosterPath   string  `json:"poster_path"`
 	VoteCount    int     `json:"vote_count"`
+	VoteAverage  float64 `json:"vote_average"`
+	GenreIDs     []int   `json:"genre_ids"`
 	Popularity   float64 `json:"popularity"`
 }
 
 // toModel converts the credit DTO to the shared credit type, preferring the
-// movie title and release date but falling back to television fields.
-func (p personCreditDTO) toModel() model.Credit {
+// movie title and release date but falling back to television fields. The
+// genres map turns genre ids into names, skipping ids it does not know.
+func (p personCreditDTO) toModel(genres map[int]string) model.Credit {
 	title := p.Title
 	if title == "" {
 		title = p.Name
@@ -566,6 +609,12 @@ func (p personCreditDTO) toModel() model.Credit {
 	date := p.ReleaseDate
 	if date == "" {
 		date = p.FirstAirDate
+	}
+	var names []string
+	for _, id := range p.GenreIDs {
+		if name, ok := genres[id]; ok {
+			names = append(names, name)
+		}
 	}
 	return model.Credit{
 		TMDBID:    p.ID,
@@ -575,6 +624,8 @@ func (p personCreditDTO) toModel() model.Credit {
 		Character: p.Character,
 		Job:       p.Job,
 		Votes:     p.VoteCount,
+		Rating:    p.VoteAverage,
+		Genres:    names,
 		PosterURL: imageURL("w342", p.PosterPath),
 	}
 }

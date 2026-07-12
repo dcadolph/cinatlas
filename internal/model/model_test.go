@@ -56,19 +56,19 @@ func TestTagOwnership(t *testing.T) {
 func TestSortAvailability(t *testing.T) {
 	t.Parallel()
 	in := []Availability{
-		{Provider: "Apple TV", Kind: AccessBuy},
-		{Provider: "Netflix", Kind: AccessStream},
-		{Provider: "Tubi", Kind: AccessFree},
-		{Provider: "Amazon Video", Kind: AccessRent},
-		{Provider: "Max", Kind: AccessStream},
+		{Provider: "Apple TV", Kinds: []string{AccessBuy}},
+		{Provider: "Netflix", Kinds: []string{AccessStream}},
+		{Provider: "Tubi", Kinds: []string{AccessFree}},
+		{Provider: "Amazon Video", Kinds: []string{AccessRent, AccessBuy}},
+		{Provider: "Max", Kinds: []string{AccessStream}},
 	}
 	SortAvailability(in)
 	want := []Availability{
-		{Provider: "Max", Kind: AccessStream},
-		{Provider: "Netflix", Kind: AccessStream},
-		{Provider: "Tubi", Kind: AccessFree},
-		{Provider: "Amazon Video", Kind: AccessRent},
-		{Provider: "Apple TV", Kind: AccessBuy},
+		{Provider: "Max", Kinds: []string{AccessStream}},
+		{Provider: "Netflix", Kinds: []string{AccessStream}},
+		{Provider: "Tubi", Kinds: []string{AccessFree}},
+		{Provider: "Amazon Video", Kinds: []string{AccessRent, AccessBuy}},
+		{Provider: "Apple TV", Kinds: []string{AccessBuy}},
 	}
 	if !reflect.DeepEqual(want, in) {
 		t.Errorf("SortAvailability\n got %+v\nwant %+v", in, want)
