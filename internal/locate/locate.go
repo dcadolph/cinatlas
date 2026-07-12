@@ -45,10 +45,45 @@ func (f LocatorFunc) Locate(ctx context.Context, imdbID string) (*Located, error
 	return f(ctx, imdbID)
 }
 
+// Sort orders for place results.
+const (
+	// SortFame orders by fame, the default.
+	SortFame = "fame"
+	// SortAZ orders by title.
+	SortAZ = "az"
+	// SortNew orders newest release first.
+	SortNew = "new"
+	// SortOld orders oldest release first.
+	SortOld = "old"
+)
+
+// AtQuery shapes one page of a place lookup.
+type AtQuery struct {
+	// Offset is how many matches to skip.
+	Offset int
+	// Limit caps the returned page.
+	Limit int
+	// Sort picks the ordering, SortFame when empty.
+	Sort string
+	// Decade keeps only releases in one decade when non-zero, such as 1990.
+	Decade int
+}
+
+// AtResult is one page of a place lookup plus its facets.
+type AtResult struct {
+	// Movies is the requested page, enriched through TMDB.
+	Movies []model.Movie
+	// Total counts every match after filtering.
+	Total int
+	// Decades lists the release decades present across all matches, newest
+	// first, for building filters.
+	Decades []int
+}
+
 // Atlas answers both directions: film to places, and place to films.
 type Atlas interface {
 	Locator
-	At(ctx context.Context, place string, offset, limit int) ([]model.Movie, int, error)
+	At(ctx context.Context, place string, query AtQuery) (*AtResult, error)
 }
 
 // IMDBFinder resolves an IMDB title id to a movie with images and ids.
@@ -86,19 +121,31 @@ func New(resolver wikidata.Resolver, places wikidata.PlaceSearcher,
 	return &Service{resolver: resolver, places: places, sections: sections, finder: finder}
 }
 
-// At returns one page of movies filmed at the named place, most famous first,
-// plus the total match count. Only the requested page is enriched through
-// TMDB, so deep pages stay as cheap as the first.
-func (s *Service) At(ctx context.Context, place string, offset, limit int) ([]model.Movie, int, error) {
+// At returns one page of movies filmed at the named place, plus totals and
+// decade facets. Only the requested page is enriched through TMDB, so deep
+// pages stay as cheap as the first.
+func (s *Service) At(ctx context.Context, place string, query AtQuery) (*AtResult, error) {
 	hits, err := s.places.FilmsAt(ctx, place)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	total := len(hits)
-	if offset >= total {
-		return nil, total, nil
+	result := &AtResult{Decades: decades(hits)}
+	if query.Decade != 0 {
+		kept := hits[:0]
+		for _, hit := range hits {
+			if hit.Year >= query.Decade && hit.Year < query.Decade+10 {
+				kept = append(kept, hit)
+			}
+		}
+		hits = kept
 	}
-	hits = hits[offset:min(total, offset+limit)]
+	sortHits(hits, query.Sort)
+	result.Total = len(hits)
+	if query.Offset >= result.Total {
+		return result, nil
+	}
+	hits = hits[query.Offset:min(result.Total, query.Offset+query.Limit)]
+
 	log := logutil.FromContext(ctx)
 	movies := make([]model.Movie, len(hits))
 	sem := make(chan struct{}, findWorkers)
@@ -117,7 +164,44 @@ func (s *Service) At(ctx context.Context, place string, offset, limit int) ([]mo
 		}(i, hit)
 	}
 	wg.Wait()
-	return movies, total, nil
+	result.Movies = movies
+	return result, nil
+}
+
+// sortHits orders hits in place. Fame keeps the source order; unknown years
+// always sink to the end of date sorts.
+func sortHits(hits []wikidata.Film, order string) {
+	switch order {
+	case SortAZ:
+		sort.SliceStable(hits, func(i, j int) bool {
+			return strings.ToLower(hits[i].Title) < strings.ToLower(hits[j].Title)
+		})
+	case SortNew:
+		sort.SliceStable(hits, func(i, j int) bool { return hits[i].Year > hits[j].Year })
+	case SortOld:
+		sort.SliceStable(hits, func(i, j int) bool {
+			if hits[i].Year == 0 || hits[j].Year == 0 {
+				return hits[j].Year == 0 && hits[i].Year != 0
+			}
+			return hits[i].Year < hits[j].Year
+		})
+	}
+}
+
+// decades lists the release decades present, newest first.
+func decades(hits []wikidata.Film) []int {
+	seen := map[int]bool{}
+	for _, hit := range hits {
+		if hit.Year > 0 {
+			seen[hit.Year/10*10] = true
+		}
+	}
+	out := make([]int, 0, len(seen))
+	for d := range seen {
+		out = append(out, d)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(out)))
+	return out
 }
 
 // enrichHit upgrades one reverse hit through TMDB, falling back to the

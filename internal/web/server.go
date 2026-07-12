@@ -164,6 +164,12 @@ type pageData struct {
 	Page int
 	// TotalPages counts the place pages.
 	TotalPages int
+	// Sort is the active place ordering.
+	Sort string
+	// Decade is the active decade filter, zero for all.
+	Decade int
+	// Decades lists the decades available to filter by.
+	Decades []int
 	// SearchMovies are unified-search movie matches in relevance order.
 	SearchMovies []model.Movie
 	// SearchPeople are unified-search person matches in relevance order.
@@ -205,12 +211,12 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}()
 	go func() {
 		defer wg.Done()
-		movies, _, err := s.locator.At(ctx, query, 0, maxSimilar)
+		result, err := s.locator.At(ctx, query, locate.AtQuery{Limit: maxSimilar})
 		if err != nil {
 			s.log.Error("place search failed", "place", query, "err", err)
 			return
 		}
-		data.AtMovies = movies
+		data.AtMovies = result.Movies
 	}()
 	wg.Wait()
 
@@ -237,24 +243,34 @@ func (s *Server) handlePlace(w http.ResponseWriter, r *http.Request) {
 	if err != nil || page < 1 {
 		page = 1
 	}
-	movies, total, err := s.locator.At(r.Context(), query, (page-1)*maxPlaceMovies, maxPlaceMovies)
+	sortOrder := r.URL.Query().Get("sort")
+	decade, _ := strconv.Atoi(r.URL.Query().Get("decade"))
+	result, err := s.locator.At(r.Context(), query, locate.AtQuery{
+		Offset: (page - 1) * maxPlaceMovies,
+		Limit:  maxPlaceMovies,
+		Sort:   sortOrder,
+		Decade: decade,
+	})
 	if err != nil {
 		s.log.Error("place search failed", "place", query, "err", err)
 		data.Error = "Place search failed. Try again."
 		s.render(w, http.StatusBadGateway, "index.html", data)
 		return
 	}
-	if total == 0 {
+	if result.Total == 0 && decade == 0 {
 		data.Error = fmt.Sprintf("No films with recorded locations at %q yet. "+
 			"Location data is thin outside film hubs. Try a nearby city.", query)
 		s.render(w, http.StatusNotFound, "index.html", data)
 		return
 	}
 	data.PlaceName = query
-	data.PlaceMovies = movies
-	data.PlaceTotal = total
+	data.PlaceMovies = result.Movies
+	data.PlaceTotal = result.Total
 	data.Page = page
-	data.TotalPages = (total + maxPlaceMovies - 1) / maxPlaceMovies
+	data.TotalPages = (result.Total + maxPlaceMovies - 1) / maxPlaceMovies
+	data.Sort = sortOrder
+	data.Decade = decade
+	data.Decades = result.Decades
 	s.render(w, http.StatusOK, "index.html", data)
 }
 

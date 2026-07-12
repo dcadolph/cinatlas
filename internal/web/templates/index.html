@@ -316,7 +316,7 @@
   </section>
   {{end}}
 
-  {{if .PlaceMovies}}
+  {{if .PlaceName}}
   <section class="result">
     <div class="hero hero-plain">
       <div class="hero-scrim">
@@ -330,6 +330,30 @@
       </div>
     </div>
     <div class="result-body">
+      <form class="place-controls" action="/place" method="get">
+        <input type="hidden" name="q" value="{{.Query}}">
+        <label class="control">
+          <span>Sort</span>
+          <select name="sort" onchange="this.form.submit()">
+            <option value="">Most famous</option>
+            <option value="az"{{if eq .Sort "az"}} selected{{end}}>Title A to Z</option>
+            <option value="new"{{if eq .Sort "new"}} selected{{end}}>Newest first</option>
+            <option value="old"{{if eq .Sort "old"}} selected{{end}}>Oldest first</option>
+          </select>
+        </label>
+        <label class="control">
+          <span>Decade</span>
+          <select name="decade" onchange="this.form.submit()">
+            <option value="">All decades</option>
+            {{$active := .Decade}}
+            {{range .Decades}}
+            <option value="{{.}}"{{if eq . $active}} selected{{end}}>{{.}}s</option>
+            {{end}}
+          </select>
+        </label>
+        <noscript><button class="btn-ghost" type="submit">Apply</button></noscript>
+      </form>
+      {{if .PlaceMovies}}
       <div class="shelf">
         {{range .PlaceMovies}}
         {{if .TMDBID}}
@@ -349,11 +373,14 @@
         </a>
         {{end}}
       </div>
+      {{else}}
+      <p class="muted">No matches in that decade here. Pick another.</p>
+      {{end}}
       {{if gt .TotalPages 1}}
       <nav class="pager">
-        {{if gt .Page 1}}<a class="alt-pill" href="/place?q={{.Query}}&page={{sub .Page 1}}">← Previous</a>{{end}}
+        {{if gt .Page 1}}<a class="alt-pill" href="/place?q={{.Query}}&sort={{.Sort}}&decade={{if .Decade}}{{.Decade}}{{end}}&page={{sub .Page 1}}">← Previous</a>{{end}}
         <span class="muted">Page {{.Page}} of {{.TotalPages}}</span>
-        {{if lt .Page .TotalPages}}<a class="alt-pill" href="/place?q={{.Query}}&page={{add .Page 1}}">Next →</a>{{end}}
+        {{if lt .Page .TotalPages}}<a class="alt-pill" href="/place?q={{.Query}}&sort={{.Sort}}&decade={{if .Decade}}{{.Decade}}{{end}}&page={{add .Page 1}}">Next →</a>{{end}}
       </nav>
       {{end}}
     </div>
