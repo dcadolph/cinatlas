@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/dcadolph/cinatlas/internal/ddd"
+	"github.com/dcadolph/cinatlas/internal/fitfind"
 	"github.com/dcadolph/cinatlas/internal/imdb"
 	"github.com/dcadolph/cinatlas/internal/locate"
 	"github.com/dcadolph/cinatlas/internal/model"
@@ -56,6 +57,8 @@ type Server struct {
 	// triggers answers content trigger lookups for the fit page, nil when no
 	// DoesTheDogDie key is configured; hard vetoes then report as unverified.
 	triggers ddd.TriggerSource
+	// finder runs the family fit pipeline.
+	finder *fitfind.Finder
 	// tmpl holds the parsed page templates.
 	tmpl *template.Template
 	// log receives request diagnostics.
@@ -86,7 +89,14 @@ func New(client *tmdb.HTTPClient, locator locate.Atlas, triggers ddd.TriggerSour
 	if err != nil {
 		return nil, fmt.Errorf("web: parse templates: %w", err)
 	}
-	return &Server{tmdb: client, locator: locator, triggers: triggers, tmpl: tmpl, log: log}, nil
+	return &Server{
+		tmdb:     client,
+		locator:  locator,
+		triggers: triggers,
+		finder:   fitfind.New(client, triggers, log),
+		tmpl:     tmpl,
+		log:      log,
+	}, nil
 }
 
 // formatRuntime renders minutes as "1h 38m".
