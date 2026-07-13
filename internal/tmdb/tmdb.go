@@ -413,7 +413,9 @@ type movieDTO struct {
 	Tagline        string       `json:"tagline"`
 	Runtime        int          `json:"runtime"`
 	VoteAverage    float64      `json:"vote_average"`
+	Popularity     float64      `json:"popularity"`
 	Genres         []genreDTO   `json:"genres"`
+	GenreIDs       []int        `json:"genre_ids"`
 	PosterPath     string       `json:"poster_path"`
 	BackdropPath   string       `json:"backdrop_path"`
 	Credits        creditsDTO   `json:"credits"`
@@ -505,6 +507,7 @@ func (m movieDTO) toModel() model.Movie {
 		Tagline:     m.Tagline,
 		Runtime:     m.Runtime,
 		Rating:      m.VoteAverage,
+		Popularity:  m.Popularity,
 		Genres:      genres,
 		PosterURL:   imageURL("w342", m.PosterPath),
 		BackdropURL: imageURL("w1280", m.BackdropPath),
