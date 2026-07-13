@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Family fit · cinatlas</title>
+<meta name="description" content="Find films in the world that fit your family: everyone's ratings, triggers, and tastes at once.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@1,500;1,600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" type="image/png" href="/static/logo.png">
+<style>
+  .fit-wrap { max-width: 1080px; margin: 0 auto; padding: 24px 22px 80px; }
+  .fit-intro { color: var(--dim, #a3a4ab); max-width: 68ch; }
+  .fit-note { color: var(--dim, #a3a4ab); font-size: 14px; margin-top: 6px; }
+  .member {
+    border: 1px solid rgba(232, 177, 60, 0.25);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin: 12px 0;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .member-head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .member-head input[type="text"] {
+    flex: 1 1 180px;
+    min-width: 140px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.3);
+    color: inherit;
+    font: inherit;
+  }
+  .member-head select {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.3);
+    color: inherit;
+    font: inherit;
+  }
+  .member-remove {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--dim, #a3a4ab);
+    cursor: pointer;
+    font-size: 18px;
+  }
+  .veto-group { margin-top: 10px; }
+  .veto-group > span { display: block; font-size: 13px; color: var(--dim, #a3a4ab); margin-bottom: 4px; }
+  .veto-options { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .veto-options label { font-size: 14px; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .fit-controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+  .fit-controls input[type="text"] {
+    flex: 1 1 260px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.3);
+    color: inherit;
+    font: inherit;
+  }
+  .fit-summary { margin: 26px 0 8px; }
+  .fit-badges { display: inline-flex; gap: 6px; margin-left: 8px; vertical-align: middle; }
+  .cert-badge {
+    border: 1px solid rgba(232, 177, 60, 0.6);
+    border-radius: 6px;
+    padding: 1px 7px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+  }
+  .unverified-badge {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    padding: 1px 7px;
+    font-size: 12px;
+    color: var(--dim, #a3a4ab);
+  }
+  .fit-meta { font-size: 13px; color: var(--dim, #a3a4ab); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="/"><img class="brand-mark" src="/static/logo.png" alt=""><span>cin<span class="brand-dot">•</span>atlas</span></a>
+  <span class="tagline">films that fit your family</span>
+</header>
+
+<main class="fit-wrap">
+  <h1>Family fit</h1>
+  <p class="fit-intro">Add everyone watching. Set each person's rating ceiling, the content they
+  cannot handle, and the genres they would rather skip. Cinatlas finds popular films that pass
+  everyone at once, with what you can already stream ranked first.</p>
+  {{if not .ContentChecks}}
+  <p class="fit-note">Content checks are not configured on this server, so trigger vetoes show as
+  unverified. Rating ceilings still apply.</p>
+  {{end}}
+
+  {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+
+  <section id="builder"
+           data-profile="{{.ProfileParam}}"
+           data-services="{{.Services}}">
+    <div id="members"></div>
+    <div class="fit-controls">
+      <button type="button" class="btn-ghost" id="add-member">Add a person</button>
+    </div>
+    <div class="fit-controls">
+      <input type="text" id="services" placeholder="Your streaming services, comma-separated (e.g. Netflix, Disney)"
+             value="{{.Services}}">
+    </div>
+    <div class="fit-controls">
+      <button type="button" class="btn-primary" id="find">Find films that fit</button>
+      <button type="button" class="btn-ghost" id="share">Copy share link</button>
+    </div>
+  </section>
+
+  <template id="member-template">
+    <div class="member">
+      <div class="member-head">
+        <input type="text" class="member-name" placeholder="Name" maxlength="40">
+        <select class="member-ceiling">
+          <option value="">No rating limit</option>
+          <option value="G">G at most</option>
+          <option value="PG">PG at most</option>
+          <option value="PG-13">PG-13 at most</option>
+          <option value="R">R at most</option>
+        </select>
+        <button type="button" class="member-remove" title="Remove" aria-label="Remove">×</button>
+      </div>
+      <div class="veto-group">
+        <span>Cannot handle (excludes the film):</span>
+        <div class="veto-options hard-vetoes">
+          {{range .Topics}}<label><input type="checkbox" value="{{.Key}}">{{.Label}}</label>{{end}}
+        </div>
+      </div>
+      <div class="veto-group">
+        <span>Would rather skip (ranks lower):</span>
+        <div class="veto-options soft-vetoes">
+          {{range .Genres}}<label><input type="checkbox" value="{{.}}">{{.}}</label>{{end}}
+        </div>
+      </div>
+    </div>
+  </template>
+
+  {{if .Profile}}
+  <section class="fit-summary">
+    <h2>Fits {{if .Profile.Name}}{{.Profile.Name}}{{else}}everyone{{end}}</h2>
+    <p class="fit-note">{{len .Results}} films pass every constraint. {{.Excluded}} popular titles
+    were excluded by someone's limits.</p>
+    {{if .Results}}
+    <div class="shelf">
+      {{range .Results}}
+      <a class="shelf-card" href="/movie?id={{.Movie.TMDBID}}">
+        <span class="shelf-art">{{if .Movie.PosterURL}}<img src="{{.Movie.PosterURL}}" alt="" loading="lazy">{{else}}<span class="art-empty"></span>{{end}}</span>
+        <span class="shelf-title">{{.Movie.Title}}</span>
+        <span class="shelf-sub">{{if .Movie.Year}}{{.Movie.Year}}{{end}}
+          <span class="fit-badges">
+            {{if .Movie.Certification}}<span class="cert-badge">{{.Movie.Certification}}</span>{{end}}
+            {{if .Unverified}}<span class="unverified-badge" title="{{range .Unverified}}{{.}}. {{end}}">unverified</span>{{end}}
+          </span>
+        </span>
+        {{if .SubscriptionHits}}<span class="fit-meta">On your services</span>{{end}}
+      </a>
+      {{end}}
+    </div>
+    {{else}}
+    <p>Nothing passed every constraint. Loosen a ceiling or drop a veto and try again.</p>
+    {{end}}
+  </section>
+  {{end}}
+</main>
+
+<script src="/static/fit.js"></script>
+</body>
+</html>
