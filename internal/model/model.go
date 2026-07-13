@@ -30,6 +30,10 @@ type Movie struct {
 	Runtime int `json:"runtime,omitempty"`
 	// Rating is the TMDB average vote from 0 to 10, zero when unknown.
 	Rating float64 `json:"rating,omitempty"`
+	// Popularity is the TMDB popularity score, zero when unknown.
+	Popularity float64 `json:"popularity,omitempty"`
+	// Certification is the US certification such as PG, empty when unknown.
+	Certification string `json:"certification,omitempty"`
 	// Genres lists the genre names.
 	Genres []string `json:"genres,omitempty"`
 	// PosterURL is the poster image, empty when none exists.
