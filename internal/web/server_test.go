@@ -110,7 +110,7 @@ func newSite(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatalf("tmdb.New: %v", err)
 	}
-	server, err := New(client, fakeAtlas{}, logutil.New("error"))
+	server, err := New(client, fakeAtlas{}, nil, logutil.New("error"))
 	if err != nil {
 		t.Fatalf("web.New: %v", err)
 	}

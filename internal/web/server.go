@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dcadolph/cinatlas/internal/ddd"
 	"github.com/dcadolph/cinatlas/internal/imdb"
 	"github.com/dcadolph/cinatlas/internal/locate"
 	"github.com/dcadolph/cinatlas/internal/model"
@@ -52,15 +53,20 @@ type Server struct {
 	tmdb *tmdb.HTTPClient
 	// locator answers filming facts in both directions.
 	locator locate.Atlas
+	// triggers answers content trigger lookups for the fit page, nil when no
+	// DoesTheDogDie key is configured; hard vetoes then report as unverified.
+	triggers ddd.TriggerSource
 	// tmpl holds the parsed page templates.
 	tmpl *template.Template
 	// log receives request diagnostics.
 	log *slog.Logger
 }
 
-// New returns a Server. It panics on nil dependencies, which are developer
-// errors, and returns an error only when the embedded templates fail to parse.
-func New(client *tmdb.HTTPClient, locator locate.Atlas, log *slog.Logger) (*Server, error) {
+// New returns a Server. It panics on nil required dependencies, which are
+// developer errors, and returns an error only when the embedded templates fail
+// to parse. A nil trigger source is allowed and disables content checks.
+func New(client *tmdb.HTTPClient, locator locate.Atlas, triggers ddd.TriggerSource,
+	log *slog.Logger) (*Server, error) {
 	if client == nil {
 		panic("web.New: tmdb client required")
 	}
@@ -80,7 +86,7 @@ func New(client *tmdb.HTTPClient, locator locate.Atlas, log *slog.Logger) (*Serv
 	if err != nil {
 		return nil, fmt.Errorf("web: parse templates: %w", err)
 	}
-	return &Server{tmdb: client, locator: locator, tmpl: tmpl, log: log}, nil
+	return &Server{tmdb: client, locator: locator, triggers: triggers, tmpl: tmpl, log: log}, nil
 }
 
 // formatRuntime renders minutes as "1h 38m".
@@ -114,6 +120,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /person", s.handlePerson)
 	mux.HandleFunc("GET /place", s.handlePlace)
 	mux.HandleFunc("GET /globe", s.handleGlobe)
+	mux.HandleFunc("GET /fit", s.handleFit)
 	mux.Handle("GET /static/", http.FileServerFS(siteFS))
 	mux.HandleFunc("/", s.handleNotFound)
 	return mux

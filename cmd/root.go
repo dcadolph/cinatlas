@@ -40,6 +40,7 @@ Flags:
 
 Environment:
   CINATLAS_TMDB_KEY   TMDB API key, required for data commands
+  CINATLAS_DDTD_KEY   DoesTheDogDie API key, enables fit content checks (serve)
   CINATLAS_JSON       Set to 1 or true to output JSON by default
   CINATLAS_PRETTY     Set to 1 or true to indent JSON output
   CINATLAS_REGION     Default country for watch availability (default "US")
