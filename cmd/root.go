@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 
+	"log/slog"
+
+	"github.com/dcadolph/cinatlas/internal/ddd"
 	"github.com/dcadolph/cinatlas/internal/jsonutil"
 	"github.com/dcadolph/cinatlas/internal/tmdb"
 )
@@ -26,6 +29,7 @@ Commands:
   watch    Where a movie is streaming right now
   films    What else a person was in or directed
   who      Identify a person and their notable roles
+  fit      Films that fit your family (--profile <payload> or --ceiling <rating>)
   serve    Run the cinatlas website locally (--addr, default 127.0.0.1:8878)
   version  Print the build version
   help     Show this help
@@ -102,6 +106,22 @@ func loadTMDB(h *http.Client, region string) (*tmdb.HTTPClient, int) {
 		return nil, CodeConfig
 	}
 	return client, CodeOK
+}
+
+// loadDDTD builds the optional DoesTheDogDie trigger source from the environment
+// key, nil when unset or unusable so fit content checks degrade to unverified.
+func loadDDTD(h *http.Client, log *slog.Logger) ddd.TriggerSource {
+	key := os.Getenv("CINATLAS_DDTD_KEY")
+	if key == "" {
+		log.Info("CINATLAS_DDTD_KEY not set: fit content checks disabled")
+		return nil
+	}
+	client, err := ddd.New(key, ddd.WithHTTPClient(h))
+	if err != nil {
+		log.Warn("doesthedogdie client init failed: fit content checks disabled", "err", err)
+		return nil
+	}
+	return client
 }
 
 // envOr returns the environment value for key, or def when unset.

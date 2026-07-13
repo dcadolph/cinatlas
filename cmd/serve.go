@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/dcadolph/cinatlas/internal/ddd"
 	"github.com/dcadolph/cinatlas/internal/logutil"
 	"github.com/dcadolph/cinatlas/internal/web"
 )
@@ -37,18 +36,7 @@ func runServe(ctx context.Context, args []string) int {
 	if code != CodeOK {
 		return code
 	}
-	var triggers ddd.TriggerSource
-	if key := os.Getenv("CINATLAS_DDTD_KEY"); key != "" {
-		dddClient, err := ddd.New(key, ddd.WithHTTPClient(httpClient))
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "cinatlas serve:", err)
-			return CodeConfig
-		}
-		triggers = dddClient
-	} else {
-		log.Info("CINATLAS_DDTD_KEY not set: fit content checks disabled")
-	}
-	server, err := web.New(client, newLocator(httpClient, client), triggers, log)
+	server, err := web.New(client, newLocator(httpClient, client), loadDDTD(httpClient, log), log)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "cinatlas serve:", err)
 		return CodeError

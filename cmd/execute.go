@@ -26,6 +26,8 @@ func Execute(ctx context.Context, args []string) int {
 		return runFilms(ctx, rest)
 	case "who":
 		return runWho(ctx, rest)
+	case "fit":
+		return runFit(ctx, rest)
 	case "serve":
 		return runServe(ctx, rest)
 	case "version":
