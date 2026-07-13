@@ -1,0 +1,9 @@
+{
+  "topicItemStats": [
+    {"yesSum": 50, "noSum": 2, "topic": {"name": "A Dog Dies"}},
+    {"yesSum": 0, "noSum": 30, "topic": {"name": "a cat dies"}},
+    {"yesSum": 3, "noSum": 10, "topic": {"name": "there are jump scares"}},
+    {"yesSum": 0, "noSum": 0, "topic": {"name": "there are spiders"}},
+    {"yesSum": 9, "noSum": 1, "topic": {"name": "unmapped topic"}}
+  ]
+}
