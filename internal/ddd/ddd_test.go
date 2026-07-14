@@ -112,9 +112,12 @@ func TestTriggers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("triggers: %v", err)
 	}
+	// media.json: "A Dog Dies" 50y/2n, "a cat dies" 0y/30n, jump scares 3y/10n,
+	// spiders 0y/0n (dropped as unknown), "unmapped topic" (dropped, no key).
 	want := map[string]family.Trigger{
-		"animal-death": family.TriggerYes,
-		"jump-scares":  family.TriggerNo,
+		"dog-death":   family.TriggerYes,
+		"cat-death":   family.TriggerNo,
+		"jump-scares": family.TriggerNo,
 	}
 	if diff := cmp.Diff(want, got, cmpopts.EquateEmpty()); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)

@@ -49,8 +49,23 @@
     font-size: 18px;
   }
   .veto-group { margin-top: 10px; }
-  .veto-group > span { display: block; font-size: 13px; color: var(--dim, #a3a4ab); margin-bottom: 4px; }
-  .veto-options { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .veto-group > span { display: block; font-size: 13px; color: var(--dim, #a3a4ab); margin-bottom: 6px; }
+  .veto-cat {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    margin: 4px 0;
+    padding: 0 10px;
+  }
+  .veto-cat > summary {
+    cursor: pointer;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    list-style-position: inside;
+  }
+  .veto-cat[open] > summary { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+  .veto-options { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 0 10px; }
   .veto-options label { font-size: 14px; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
   .fit-controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
   .fit-controls input[type="text"] {
@@ -132,9 +147,14 @@
       </div>
       <div class="veto-group">
         <span>Cannot handle (excludes the film):</span>
-        <div class="veto-options hard-vetoes">
-          {{range .Topics}}<label><input type="checkbox" value="{{.Key}}">{{.Label}}</label>{{end}}
-        </div>
+        {{range .Categories}}
+        <details class="veto-cat">
+          <summary>{{.Name}}</summary>
+          <div class="veto-options hard-vetoes">
+            {{range .Topics}}<label><input type="checkbox" value="{{.Key}}">{{.Label}}</label>{{end}}
+          </div>
+        </details>
+        {{end}}
       </div>
       <div class="veto-group">
         <span>Would rather skip (ranks lower):</span>

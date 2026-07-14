@@ -21,8 +21,8 @@ type fitData struct {
 	ProfileParam string
 	// Profile is the decoded profile, nil before one is built.
 	Profile *family.Profile
-	// Topics lists the curated hard vetoes for the builder.
-	Topics []ddd.Topic
+	// Categories groups the curated hard vetoes for the builder.
+	Categories []ddd.Category
 	// Genres lists the genre names offered as soft vetoes.
 	Genres []string
 	// Results are the passing films, best fit first.
@@ -41,7 +41,7 @@ type fitData struct {
 // handleFit renders the family fit page: a profile builder, and when a profile
 // arrives, the films that pass every member's constraints.
 func (s *Server) handleFit(w http.ResponseWriter, r *http.Request) {
-	data := fitData{Topics: ddd.Topics, Genres: fitGenres, ContentChecks: s.triggers != nil}
+	data := fitData{Categories: ddd.Catalog, Genres: fitGenres, ContentChecks: s.triggers != nil}
 	data.Services = strings.TrimSpace(r.URL.Query().Get("services"))
 	param := strings.TrimSpace(r.URL.Query().Get("p"))
 	if param == "" {
