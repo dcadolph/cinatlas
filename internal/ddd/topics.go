@@ -16,19 +16,18 @@ var Topics = []Topic{
 	{Key: "parent-death", Label: "A parent dies"},
 	{Key: "jump-scares", Label: "Jump scares"},
 	{Key: "blood-gore", Label: "Blood or gore"},
-	{Key: "monsters", Label: "Scary monsters"},
+	{Key: "body-horror", Label: "Body horror"},
 	{Key: "clowns", Label: "Clowns"},
 	{Key: "spiders", Label: "Spiders"},
 	{Key: "snakes", Label: "Snakes"},
 	{Key: "needles", Label: "Needles"},
 	{Key: "vomit", Label: "Vomiting"},
-	{Key: "thunder", Label: "Thunderstorms"},
 }
 
 // topicKeys maps lowercased DoesTheDogDie topic names to curated topic keys. Several
-// upstream topics can fold into one key; a yes on any of them flags the key. The
-// upstream names come from observed API responses and must be re-checked against the
-// live API whenever the curated list changes.
+// upstream topics can fold into one key; a yes on any of them flags the key. Every
+// name here was verified against live API responses on 2026-07-13; re-check whenever
+// the curated list changes.
 var topicKeys = map[string]string{
 	"a dog dies":                "animal-death",
 	"a cat dies":                "animal-death",
@@ -36,15 +35,15 @@ var topicKeys = map[string]string{
 	"an animal dies":            "animal-death",
 	"a pet dies":                "animal-death",
 	"a kid dies":                "child-death",
-	"a baby dies":               "child-death",
+	"a baby is stillborn":       "child-death",
 	"a parent dies":             "parent-death",
 	"there are jump scares":     "jump-scares",
 	"there's blood/gore":        "blood-gore",
-	"there's body horror":       "monsters",
-	"there's a clown":           "clowns",
+	"there's excessive gore":    "blood-gore",
+	"there's body horror":       "body-horror",
+	"there are clowns":          "clowns",
 	"there are spiders":         "spiders",
 	"there are snakes":          "snakes",
 	"needles/syringes are used": "needles",
 	"someone vomits":            "vomit",
-	"there's a thunderstorm":    "thunder",
 }
