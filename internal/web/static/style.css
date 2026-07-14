@@ -307,6 +307,10 @@ a.shelf-card:active { transform: translateY(-1px) scale(0.99); }
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--gold);
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
   border: 1px solid var(--gold-line);
   border-radius: 999px;
   transition: background 0.15s, box-shadow 0.15s;
