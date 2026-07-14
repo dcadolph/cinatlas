@@ -189,6 +189,33 @@ a.shelf-card:active { transform: translateY(-1px) scale(0.99); }
 
 .search-form { display: flex; flex-direction: column; gap: 12px; }
 
+.search-box { position: relative; display: flex; }
+.search-box .search-input { padding-right: 52px; }
+.search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.search-clear {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--faint);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: color 0.15s, background 0.15s;
+}
+.search-clear:hover { color: var(--fg); background: var(--gold-soft); }
+.search-clear[hidden] { display: none; }
+
 .search-input {
   width: 100%;
   padding: 16px 20px;
