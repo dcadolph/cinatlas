@@ -14,15 +14,15 @@ func TestParse(t *testing.T) {
 		WantExcludes []int
 		WantKeywords []string
 		WantSort     string
-	}{ // Test 0: Empty query yields the popular baseline.
-		{Query: "", WantSort: sortPopular},
+	}{ // Test 0: Empty query yields the most-voted baseline.
+		{Query: "", WantSort: sortVoted},
 		// Test 1: Feel-good animals adventure blends genres, keywords, exclusion.
 		{
 			Query:        "a feel-good movie with animals that go on an adventure",
 			WantGenres:   []int{genreComedy, genreAdventure},
 			WantExcludes: []int{genreHorror},
 			WantKeywords: []string{"animal", "feel-good"},
-			WantSort:     sortPopular,
+			WantSort:     sortVoted,
 		},
 		// Test 2: Blended tone stacks both genres.
 		{

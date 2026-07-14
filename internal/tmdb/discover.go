@@ -19,6 +19,8 @@ type DiscoverQuery struct {
 	WithoutGenres []int
 	// WithKeywords are keyword ids the film may have any of.
 	WithKeywords []int
+	// WithCast are person ids that must all appear in the billed cast.
+	WithCast []int
 	// VoteAverageGTE is the minimum TMDB vote average.
 	VoteAverageGTE float64
 	// VoteCountGTE is the minimum TMDB vote count.
@@ -57,6 +59,9 @@ func (c *HTTPClient) Discover(ctx context.Context, query DiscoverQuery) ([]model
 	}
 	if len(query.WithKeywords) > 0 {
 		q.Set("with_keywords", joinIDs(query.WithKeywords, "|"))
+	}
+	if len(query.WithCast) > 0 {
+		q.Set("with_cast", joinIDs(query.WithCast, ","))
 	}
 	if query.VoteAverageGTE > 0 {
 		q.Set("vote_average.gte", strconv.FormatFloat(query.VoteAverageGTE, 'f', 1, 64))

@@ -557,18 +557,21 @@ func (s *Server) handleFind(w http.ResponseWriter, r *http.Request) {
 	}
 	data.Searched = true
 
-	intent := taste.Parse(query)
+	// Pull any named cast out first so the remainder reads as pure mood.
+	castIDs, castNames, mood := s.castFilter(ctx, query)
+
+	intent := taste.Parse(mood)
 	if s.enhancer != nil {
-		if refined, err := s.enhancer.Enhance(ctx, query, intent); err != nil {
-			s.log.Error("mood enhance failed", "query", query, "err", err)
+		if refined, err := s.enhancer.Enhance(ctx, mood, intent); err != nil {
+			s.log.Error("mood enhance failed", "query", mood, "err", err)
 		} else {
 			intent = refined
 			data.Enhanced = true
 		}
 	}
-	data.Chips = intent.Labels()
+	data.Chips = castChips(castNames, intent.Labels())
 
-	movies, err := s.discover(ctx, intent)
+	movies, err := s.discover(ctx, intent, castIDs)
 	if err != nil {
 		s.log.Error("discover failed", "query", query, "err", err)
 		s.render(w, http.StatusBadGateway, "find.html", data)
@@ -578,32 +581,124 @@ func (s *Server) handleFind(w http.ResponseWriter, r *http.Request) {
 	s.render(w, http.StatusOK, "find.html", data)
 }
 
-// discover resolves an intent's keywords to ids and runs a TMDB discovery,
-// retrying once without keywords if the first pass is over-constrained.
-func (s *Server) discover(ctx context.Context, intent taste.Intent) ([]model.Movie, error) {
-	params := tmdb.DiscoverQuery{
+// minDiscoverResults is the shelf size discovery tries to reach before it
+// relaxes filters.
+const minDiscoverResults = 8
+
+// discover runs a TMDB discovery for the intent and any named cast, relaxing
+// from most specific to least until the shelf fills. Keywords drop first, then
+// a blended genre set narrows to its lead genre. The cast filter and quality
+// floors never relax, since those are hard constraints the viewer asked for.
+func (s *Server) discover(ctx context.Context, intent taste.Intent, castIDs []int) ([]model.Movie, error) {
+	base := tmdb.DiscoverQuery{
 		WithGenres:     intent.Genres,
 		WithoutGenres:  intent.ExcludeGenres,
-		WithKeywords:   s.resolveKeywords(ctx, intent.Keywords),
+		WithCast:       castIDs,
 		VoteAverageGTE: intent.MinRating,
 		VoteCountGTE:   intent.MinVotes,
 		SortBy:         intent.Sort,
 	}
 	if intent.YearFrom > 0 {
-		params.ReleaseDateGTE = fmt.Sprintf("%04d-01-01", intent.YearFrom)
+		base.ReleaseDateGTE = fmt.Sprintf("%04d-01-01", intent.YearFrom)
 	}
 	if intent.YearTo > 0 {
-		params.ReleaseDateLTE = fmt.Sprintf("%04d-12-31", intent.YearTo)
+		base.ReleaseDateLTE = fmt.Sprintf("%04d-12-31", intent.YearTo)
 	}
-	movies, err := s.tmdb.Discover(ctx, params)
-	if err != nil {
-		return nil, err
+
+	attempts := make([]tmdb.DiscoverQuery, 0, 3)
+	if keywords := s.resolveKeywords(ctx, intent.Keywords); len(keywords) > 0 {
+		withKeywords := base
+		withKeywords.WithKeywords = keywords
+		attempts = append(attempts, withKeywords)
 	}
-	if len(movies) == 0 && len(params.WithKeywords) > 0 {
-		params.WithKeywords = nil
-		return s.tmdb.Discover(ctx, params)
+	attempts = append(attempts, base)
+	if len(base.WithGenres) > 1 {
+		primary := base
+		primary.WithGenres = base.WithGenres[:1]
+		attempts = append(attempts, primary)
 	}
-	return movies, nil
+
+	var best []model.Movie
+	for _, attempt := range attempts {
+		movies, err := s.tmdb.Discover(ctx, attempt)
+		if err != nil {
+			return nil, err
+		}
+		if len(movies) >= minDiscoverResults {
+			return movies, nil
+		}
+		if len(movies) > len(best) {
+			best = movies
+		}
+	}
+	return best, nil
+}
+
+// castTriggers are the words that introduce a named actor in a mood query.
+var castTriggers = map[string]bool{
+	"with": true, "starring": true, "featuring": true, "stars": true,
+}
+
+// nameStops end a candidate actor name inside a query.
+var nameStops = map[string]bool{
+	"in": true, "the": true, "cast": true, "and": true, "or": true,
+	"a": true, "an": true, "as": true, "that": true, "who": true,
+	"from": true, "to": true, "movie": true, "movies": true,
+	"film": true, "films": true,
+}
+
+// castFilter extracts named cast members from a mood query, resolves each to a
+// TMDB id, and returns the ids, their display names, and the query with those
+// names removed so the remainder reads as pure mood.
+func (s *Server) castFilter(ctx context.Context, query string) ([]int, []string, string) {
+	words := strings.Fields(query)
+	var ids []int
+	var names []string
+	kept := make([]string, 0, len(words))
+	for i := 0; i < len(words); {
+		if !castTriggers[strings.ToLower(words[i])] {
+			kept = append(kept, words[i])
+			i++
+			continue
+		}
+		end := i + 1
+		var candidate []string
+		for end < len(words) && len(candidate) < 3 && !nameStops[strings.ToLower(words[end])] {
+			candidate = append(candidate, words[end])
+			end++
+		}
+		if id, name, ok := s.resolveActor(ctx, strings.Join(candidate, " ")); ok {
+			ids = append(ids, id)
+			names = append(names, name)
+			i = end
+			continue
+		}
+		kept = append(kept, words[i])
+		i++
+	}
+	return ids, names, strings.Join(kept, " ")
+}
+
+// resolveActor resolves a candidate name to a TMDB person, requiring a close
+// name match so a stray word is not mistaken for a star.
+func (s *Server) resolveActor(ctx context.Context, name string) (int, string, bool) {
+	if strings.TrimSpace(name) == "" {
+		return 0, "", false
+	}
+	people := s.fuzzyPeople(ctx, name)
+	if len(people) == 0 {
+		return 0, "", false
+	}
+	return people[0].TMDBID, people[0].Name, true
+}
+
+// castChips prefixes the read chips with a "with <name>" chip per named actor.
+func castChips(names, labels []string) []string {
+	chips := make([]string, 0, len(names)+len(labels))
+	for _, name := range names {
+		chips = append(chips, "with "+name)
+	}
+	return append(chips, labels...)
 }
 
 // resolveKeywords maps each theme term to its top TMDB keyword id, dropping
