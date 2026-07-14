@@ -1,0 +1,57 @@
+name: release
+
+# Build the CLI for every major arch and attach the archives to the release
+# the moment it is published.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build and archive
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          name="cinatlas"
+          [ "$GOOS" = "windows" ] && name="cinatlas.exe"
+          go build -trimpath -ldflags "-s -w" -o "$name" .
+          base="cinatlas-${TAG}-${GOOS}-${GOARCH}"
+          if [ "$GOOS" = "windows" ]; then
+            zip "${base}.zip" "$name"
+          else
+            tar czf "${base}.tar.gz" "$name"
+          fi
+
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" cinatlas-*.tar.gz cinatlas-*.zip --clobber
