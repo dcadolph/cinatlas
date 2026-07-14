@@ -36,7 +36,11 @@
       row.querySelector(".member-ceiling").value = member.ceiling || "";
       (member.hard || []).forEach(function (key) {
         var box = row.querySelector('.hard-vetoes input[value="' + key + '"]');
-        if (box) box.checked = true;
+        if (box) {
+          box.checked = true;
+          var cat = box.closest(".veto-cat");
+          if (cat) cat.open = true;
+        }
       });
       (member.soft || []).forEach(function (genre) {
         var box = row.querySelector('.soft-vetoes input[value="' + genre + '"]');
