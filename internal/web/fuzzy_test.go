@@ -96,3 +96,14 @@ func TestNameScoreRanksRealMatchFirst(t *testing.T) {
 		t.Errorf("want McConaughey (%v) to outrank Perry (%v)", real, other)
 	}
 }
+
+func TestNameScorePenalizesExtraTokens(t *testing.T) {
+	t.Parallel()
+	// A tight two-word match must beat a stranger who merely contains the name.
+	query := "penelope cruz"
+	tight := nameScore(query, "Penelope Cruz")
+	padded := nameScore(query, "Aliyah Penelope Cruz")
+	if tight <= padded {
+		t.Errorf("want tight match (%v) to beat padded name (%v)", tight, padded)
+	}
+}

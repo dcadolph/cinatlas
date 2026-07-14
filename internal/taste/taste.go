@@ -38,6 +38,7 @@ const (
 // Sort orders TMDB understands, named so the lexicon reads clearly.
 const (
 	sortPopular = "popularity.desc"
+	sortVoted   = "vote_count.desc"
 	sortRated   = "vote_average.desc"
 	sortRecent  = "primary_release_date.desc"
 )
@@ -163,7 +164,14 @@ var lexicon = []rule{
 
 // baselineVotes keeps discovery from surfacing near-unrated obscurities when
 // the query implies nothing about how known a film should be.
-const baselineVotes = 150
+const baselineVotes = 200
+
+// genreBreadth ranks how broad a genre is so a narrowing fallback keeps the
+// most specific genre. Lower is more specific; genres absent here rank zero.
+var genreBreadth = map[int]int{
+	genreComedy: 3, genreDrama: 3,
+	genreAction: 2, genreAdventure: 2, genreFamily: 2, genreThriller: 2,
+}
 
 // genreNames labels the genre ids the lexicon uses for display.
 var genreNames = map[int]string{
@@ -323,7 +331,7 @@ func (f EnhancerFunc) Enhance(ctx context.Context, query string, base Intent) (I
 // returns a usable Intent; an empty or unrecognized query yields a popular
 // baseline rather than nothing.
 func Parse(query string) Intent {
-	q := strings.ToLower(query)
+	q := normalizeText(query)
 	var intent Intent
 	for _, r := range lexicon {
 		if !matchesAny(q, r.phrases) {
@@ -359,10 +367,17 @@ func normalize(intent Intent) Intent {
 		excluded[g] = true
 	}
 	intent.Genres = dedupeInts(intent.Genres, excluded)
+	// Order most-specific first so a narrowing fallback keeps the distinctive
+	// genre (Romance) over a broad one (Comedy).
+	sort.SliceStable(intent.Genres, func(i, j int) bool {
+		return genreBreadth[intent.Genres[i]] < genreBreadth[intent.Genres[j]]
+	})
 	intent.ExcludeGenres = dedupeInts(intent.ExcludeGenres, nil)
 	intent.Keywords = dedupeStrings(intent.Keywords)
+	// Default to the most-voted films so a mood returns titles people actually
+	// know and watched, not whatever spiked in popularity this week.
 	if intent.Sort == "" {
-		intent.Sort = sortPopular
+		intent.Sort = sortVoted
 	}
 	if intent.MinVotes < baselineVotes {
 		intent.MinVotes = baselineVotes
@@ -370,14 +385,32 @@ func normalize(intent Intent) Intent {
 	return intent
 }
 
-// matchesAny reports whether any phrase appears in the query.
+// matchesAny reports whether any phrase appears in the normalized query as a
+// whole word or phrase, so "war" does not fire inside "warm".
 func matchesAny(query string, phrases []string) bool {
+	padded := " " + query + " "
 	for _, p := range phrases {
-		if strings.Contains(query, p) {
+		if strings.Contains(padded, " "+normalizeText(p)+" ") {
 			return true
 		}
 	}
 	return false
+}
+
+// normalizeText lowercases and reduces a string to space-separated words,
+// turning punctuation and hyphens into spaces so "feel-good", "feel good", and
+// "action, sexy" all match cleanly.
+func normalizeText(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range strings.ToLower(s) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune(' ')
+		}
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
 }
 
 // dedupeInts returns the unique values in order, skipping any in drop.

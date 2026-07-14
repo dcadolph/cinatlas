@@ -141,7 +141,14 @@ func nameScore(query, name string) float64 {
 		}
 		sum += best
 	}
-	return sum / float64(len(q))
+	// Divide by the longer name so a candidate padded with extra words, like
+	// "Aliyah Penelope Cruz" against "Penelope Cruz", scores below the tight
+	// match rather than tying it.
+	denom := len(q)
+	if len(n) > denom {
+		denom = len(n)
+	}
+	return sum / float64(denom)
 }
 
 // similarity returns the edit-distance similarity of two words, from 0 for
