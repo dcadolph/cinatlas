@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cinatlas · what to watch</title>
+<meta name="description" content="Describe the movie you are in the mood for and find it, no watch history needed.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="cinatlas · what to watch">
+<meta property="og:description" content="Describe the movie you are in the mood for and find it.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@1,500;1,600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" type="image/png" href="/static/logo.png">
+</head>
+<body>
+
+{{template "topbar" "what to watch"}}
+<div class="marquee-lights" aria-hidden="true"></div>
+
+<main class="wrap">
+
+  <section class="find-panel">
+    <h1 class="find-head">In the mood for something?</h1>
+    <p class="find-sub">Describe the movie you want, not its title. Tone, theme, era, whatever fits.</p>
+    <form class="find-form" action="/find" method="get">
+      <textarea class="find-input" name="q" rows="2" autofocus
+        placeholder="a feel-good movie with animals that go on an adventure">{{.Query}}</textarea>
+      <button class="btn-primary" type="submit">Find it</button>
+    </form>
+    <div class="find-examples">
+      <span class="find-examples-label">Try:</span>
+      <a href="/find?q=action+with+a+clever+twist+and+memorable+scenes">action with a clever twist</a>
+      <a href="/find?q=a+cozy+feel-good+movie+for+a+rainy+day">cozy feel-good rainy day</a>
+      <a href="/find?q=a+dark+psychological+thriller+that+messes+with+your+head">dark psychological thriller</a>
+      <a href="/find?q=a+heartbreaking+true+story">heartbreaking true story</a>
+    </div>
+  </section>
+
+  {{if .Searched}}
+  <section class="find-results">
+    {{if .Chips}}
+    <div class="find-read">
+      <span class="find-read-label">Read as</span>
+      {{range .Chips}}<span class="chip chip-gold">{{.}}</span>{{end}}
+      {{if .Enhanced}}<span class="chip chip-ai">AI refined</span>{{end}}
+    </div>
+    {{end}}
+    {{if .Movies}}
+    {{template "movieShelf" .Movies}}
+    {{else}}
+    <p class="find-empty">Nothing matched that mood. Try describing it a different way.</p>
+    {{end}}
+  </section>
+  {{end}}
+
+</main>
+
+</body>
+</html>

@@ -24,6 +24,7 @@ import (
 	"github.com/dcadolph/cinatlas/internal/imdb"
 	"github.com/dcadolph/cinatlas/internal/locate"
 	"github.com/dcadolph/cinatlas/internal/model"
+	"github.com/dcadolph/cinatlas/internal/taste"
 	"github.com/dcadolph/cinatlas/internal/tmdb"
 )
 
@@ -59,6 +60,9 @@ type Server struct {
 	triggers ddd.TriggerSource
 	// finder runs the family fit pipeline.
 	finder *fitfind.Finder
+	// enhancer refines mood queries beyond the lexicon, nil when no model is
+	// wired; the lexicon then answers on its own.
+	enhancer taste.Enhancer
 	// tmpl holds the parsed page templates.
 	tmpl *template.Template
 	// log receives request diagnostics.
@@ -99,6 +103,12 @@ func New(client *tmdb.HTTPClient, locator locate.Atlas, triggers ddd.TriggerSour
 	}, nil
 }
 
+// SetEnhancer wires an optional mood-query enhancer. Passing nil leaves the
+// lexicon to answer on its own.
+func (s *Server) SetEnhancer(e taste.Enhancer) {
+	s.enhancer = e
+}
+
 // formatRuntime renders minutes as "1h 38m".
 func formatRuntime(minutes int) string {
 	if minutes < 60 {
@@ -129,7 +139,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /movie", s.handleMovie)
 	mux.HandleFunc("GET /person", s.handlePerson)
 	mux.HandleFunc("GET /place", s.handlePlace)
+	mux.HandleFunc("GET /find", s.handleFind)
 	mux.HandleFunc("GET /globe", s.handleGlobe)
+	mux.HandleFunc("GET /globe/pins", s.handleGlobePins)
 	mux.HandleFunc("GET /fit", s.handleFit)
 	mux.Handle("GET /static/", http.FileServerFS(siteFS))
 	mux.HandleFunc("/", s.handleNotFound)
@@ -262,7 +274,9 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 // fuzzyFallback retries the multi search with typo-tolerant variants of the
 // query and fills data with the first variant that matches, recording it as
-// the correction. It is a no-op when no variant matches.
+// the correction. When no variant matches a title, it falls back to a
+// similarity-ranked person lookup so a badly misspelled name still resolves.
+// It is a no-op when nothing plausible is found.
 func (s *Server) fuzzyFallback(ctx context.Context, query string, data *pageData) {
 	for _, variant := range relaxQuery(query) {
 		movies, people, first, err := s.tmdb.SearchMulti(ctx, variant)
@@ -279,6 +293,53 @@ func (s *Server) fuzzyFallback(ctx context.Context, query string, data *pageData
 		data.Corrected = variant
 		return
 	}
+
+	people := s.fuzzyPeople(ctx, query)
+	if len(people) == 0 {
+		return
+	}
+	data.SearchPeople = people[:min(len(people), maxShelf)]
+	data.PeopleFirst = true
+	data.Corrected = people[0].Name
+}
+
+// fuzzyPeople resolves a misspelled name to real people by searching TMDB for
+// the query, each of its words, and the prefix-relaxed variants, then ranking
+// every distinct candidate by name similarity to the query. It returns the
+// matches above the plausibility threshold, best first, or nil when none clear
+// it. This is what turns "matthew mcaughnehey" into Matthew McConaughey: the
+// bare query returns nothing, but the "matthew" word search surfaces him and
+// the last name still scores closest.
+func (s *Server) fuzzyPeople(ctx context.Context, query string) []model.Person {
+	seen := make(map[int]bool)
+	var candidates []model.Person
+	for _, variant := range personSearchVariants(query) {
+		results, err := s.tmdb.SearchPerson(ctx, variant)
+		if err != nil {
+			s.log.Error("fuzzy person search failed", "variant", variant, "err", err)
+			continue
+		}
+		for _, p := range results {
+			if !seen[p.TMDBID] {
+				seen[p.TMDBID] = true
+				candidates = append(candidates, p)
+			}
+		}
+		if len(candidates) >= 60 {
+			break
+		}
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return nameScore(query, candidates[i].Name) > nameScore(query, candidates[j].Name)
+	})
+	var matches []model.Person
+	for _, p := range candidates {
+		if nameScore(query, p.Name) < nameMatchThreshold {
+			break
+		}
+		matches = append(matches, p)
+	}
+	return matches
 }
 
 // handlePlace renders one page of the films shot at a searched place. Every
@@ -465,6 +526,103 @@ func (s *Server) resolveMovieID(ctx context.Context, r *http.Request, data *page
 
 // handlePerson resolves a person by id or query and renders their card with a
 // capped filmography.
+// findData is everything the mood-search page needs.
+type findData struct {
+	// Query is the mood text echoed back into the box.
+	Query string
+	// Movies are the discovered films in ranked order.
+	Movies []model.Movie
+	// Chips describe how the query was read, for display.
+	Chips []string
+	// Searched reports that a query ran, distinguishing an empty box from a
+	// query that found nothing.
+	Searched bool
+	// Enhanced reports that a model refined the read beyond the lexicon.
+	Enhanced bool
+}
+
+// maxFindResults caps the mood-search shelf.
+const maxFindResults = 24
+
+// handleFind answers a plain-language mood with discovered films. It reads the
+// query into an intent with the lexicon, lets an enhancer refine it when one
+// is wired, resolves theme keywords to ids, and runs a TMDB discovery.
+func (s *Server) handleFind(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	data := findData{Query: query}
+	if query == "" {
+		s.render(w, http.StatusOK, "find.html", data)
+		return
+	}
+	data.Searched = true
+
+	intent := taste.Parse(query)
+	if s.enhancer != nil {
+		if refined, err := s.enhancer.Enhance(ctx, query, intent); err != nil {
+			s.log.Error("mood enhance failed", "query", query, "err", err)
+		} else {
+			intent = refined
+			data.Enhanced = true
+		}
+	}
+	data.Chips = intent.Labels()
+
+	movies, err := s.discover(ctx, intent)
+	if err != nil {
+		s.log.Error("discover failed", "query", query, "err", err)
+		s.render(w, http.StatusBadGateway, "find.html", data)
+		return
+	}
+	data.Movies = movies[:min(len(movies), maxFindResults)]
+	s.render(w, http.StatusOK, "find.html", data)
+}
+
+// discover resolves an intent's keywords to ids and runs a TMDB discovery,
+// retrying once without keywords if the first pass is over-constrained.
+func (s *Server) discover(ctx context.Context, intent taste.Intent) ([]model.Movie, error) {
+	params := tmdb.DiscoverQuery{
+		WithGenres:     intent.Genres,
+		WithoutGenres:  intent.ExcludeGenres,
+		WithKeywords:   s.resolveKeywords(ctx, intent.Keywords),
+		VoteAverageGTE: intent.MinRating,
+		VoteCountGTE:   intent.MinVotes,
+		SortBy:         intent.Sort,
+	}
+	if intent.YearFrom > 0 {
+		params.ReleaseDateGTE = fmt.Sprintf("%04d-01-01", intent.YearFrom)
+	}
+	if intent.YearTo > 0 {
+		params.ReleaseDateLTE = fmt.Sprintf("%04d-12-31", intent.YearTo)
+	}
+	movies, err := s.tmdb.Discover(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	if len(movies) == 0 && len(params.WithKeywords) > 0 {
+		params.WithKeywords = nil
+		return s.tmdb.Discover(ctx, params)
+	}
+	return movies, nil
+}
+
+// resolveKeywords maps each theme term to its top TMDB keyword id, dropping
+// terms that resolve to nothing.
+func (s *Server) resolveKeywords(ctx context.Context, terms []string) []int {
+	var ids []int
+	for _, term := range terms {
+		matches, err := s.tmdb.Keyword(ctx, term)
+		if err != nil {
+			s.log.Error("keyword resolve failed", "term", term, "err", err)
+			continue
+		}
+		if len(matches) > 0 {
+			ids = append(ids, matches[0])
+		}
+	}
+	return ids
+}
+
 func (s *Server) handlePerson(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -541,6 +699,9 @@ func (s *Server) resolvePersonID(ctx context.Context, r *http.Request, data *pag
 		return 0, false
 	}
 	if len(results) == 0 {
+		results = s.fuzzyPeople(ctx, data.Query)
+	}
+	if len(results) == 0 {
 		data.Error = fmt.Sprintf("No person found for %q.", data.Query)
 		return 0, false
 	}
@@ -551,8 +712,22 @@ func (s *Server) resolvePersonID(ctx context.Context, r *http.Request, data *pag
 	return results[0].TMDBID, true
 }
 
-// globeData is everything the globe page needs.
+// Film caps bound how many of a person's credits the globe resolves so a
+// packed filmography cannot stall the page or drown the map. Focused is the
+// default lens; all opens the full set at the cost of a slower cold load.
+const (
+	// focusedFilmCap limits the focused lens to the most-voted credits.
+	focusedFilmCap = 30
+	// allFilmCap bounds the full lens so an outlier career stays tractable.
+	allFilmCap = 80
+	// globeWorkers bounds concurrent per-film location lookups.
+	globeWorkers = 8
+)
+
+// globeData is everything the movie globe page needs.
 type globeData struct {
+	// Mode selects the template branch: movie, person, or landing.
+	Mode string
 	// Title is the movie title.
 	Title string
 	// Year is the release year, zero when unknown.
@@ -563,7 +738,25 @@ type globeData struct {
 	Pins template.JS
 }
 
-// globePin is one marker on the globe.
+// personGlobeData is everything the person globe shell needs. Pins load
+// asynchronously from the pins endpoint, so the shell renders instantly.
+type personGlobeData struct {
+	// Mode is always "person" here, selecting the template branch.
+	Mode string
+	// PersonID is the TMDB id the pins endpoint resolves against.
+	PersonID int
+	// Name is the person's display name.
+	Name string
+	// PhotoURL is the person's profile image, empty when none exists.
+	PhotoURL string
+	// PersonURL links back to the person's filmography page.
+	PersonURL string
+	// Scope is the active lens, focused or all.
+	Scope string
+}
+
+// globePin is one marker on the globe. Film fields stay empty in movie mode
+// and carry the source title in person mode.
 type globePin struct {
 	// Name is the place label.
 	Name string `json:"name"`
@@ -577,10 +770,44 @@ type globePin struct {
 	Maps string `json:"maps"`
 	// Earth links the place on Google Earth.
 	Earth string `json:"earth"`
+	// Film is the title the pin belongs to, set only in person mode.
+	Film string `json:"film,omitempty"`
+	// Year is the film's release year, set only in person mode.
+	Year int `json:"year,omitempty"`
+	// MovieURL links the film page, set only in person mode.
+	MovieURL string `json:"movieUrl,omitempty"`
+	// Role is the person's character or job on the film, person mode only.
+	Role string `json:"role,omitempty"`
 }
 
-// handleGlobe renders the interactive globe with every resolved filming pin.
+// pinsResponse is the JSON payload the person pins endpoint returns.
+type pinsResponse struct {
+	// Pins are every resolved marker across the scoped filmography.
+	Pins []globePin `json:"pins"`
+	// Films counts the credits that were considered.
+	Films int `json:"films"`
+	// Resolved counts the films that yielded at least one pin.
+	Resolved int `json:"resolved"`
+	// Truncated reports that the scope capped a longer filmography.
+	Truncated bool `json:"truncated"`
+}
+
+// handleGlobe dispatches the globe page: a movie's filming pins, a person's
+// filmography-wide pins, or the landing prompt when neither is named.
 func (s *Server) handleGlobe(w http.ResponseWriter, r *http.Request) {
+	switch {
+	case r.URL.Query().Get("id") != "":
+		s.movieGlobe(w, r)
+	case r.URL.Query().Get("person") != "" || strings.TrimSpace(r.URL.Query().Get("q")) != "":
+		s.personGlobe(w, r)
+	default:
+		s.render(w, http.StatusOK, "globe.html", globeData{Mode: "landing"})
+	}
+}
+
+// movieGlobe renders the interactive globe with every resolved filming pin for
+// one film.
+func (s *Server) movieGlobe(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := strconv.Atoi(r.URL.Query().Get("id"))
 	if err != nil {
@@ -613,6 +840,7 @@ func (s *Server) handleGlobe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, http.StatusOK, "globe.html", globeData{
+		Mode:     "movie",
 		Title:    movie.Title,
 		Year:     movie.Year,
 		MovieURL: "/movie?id=" + strconv.Itoa(movie.TMDBID),
@@ -620,6 +848,193 @@ func (s *Server) handleGlobe(w http.ResponseWriter, r *http.Request) {
 		// characters escaped by encoding/json.
 		Pins: template.JS(raw),
 	})
+}
+
+// personGlobe renders the shell for a person's filming globe. The heavy pin
+// resolution runs in handleGlobePins so the map paints before the lookups
+// finish.
+func (s *Server) personGlobe(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, ok := s.resolveGlobePerson(ctx, r)
+	if !ok {
+		s.handleNotFound(w, r)
+		return
+	}
+	person, err := s.tmdb.Person(ctx, id)
+	if err != nil {
+		s.log.Error("person fetch failed", "id", id, "err", err)
+		s.handleNotFound(w, r)
+		return
+	}
+	scope := "focused"
+	if r.URL.Query().Get("scope") == "all" {
+		scope = "all"
+	}
+	s.render(w, http.StatusOK, "globe.html", personGlobeData{
+		Mode:      "person",
+		PersonID:  id,
+		Name:      person.Name,
+		PhotoURL:  person.PhotoURL,
+		PersonURL: "/person?id=" + strconv.Itoa(id),
+		Scope:     scope,
+	})
+}
+
+// resolveGlobePerson picks the person id from the person parameter or the top
+// name-search match.
+func (s *Server) resolveGlobePerson(ctx context.Context, r *http.Request) (int, bool) {
+	if idStr := r.URL.Query().Get("person"); idStr != "" {
+		id, err := strconv.Atoi(idStr)
+		return id, err == nil
+	}
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if query == "" {
+		return 0, false
+	}
+	results, err := s.tmdb.SearchPerson(ctx, query)
+	if err != nil {
+		s.log.Error("globe person search failed", "query", query, "err", err)
+		return 0, false
+	}
+	if len(results) == 0 {
+		results = s.fuzzyPeople(ctx, query)
+	}
+	if len(results) == 0 {
+		return 0, false
+	}
+	return results[0].TMDBID, true
+}
+
+// handleGlobePins resolves and returns every filming pin across a person's
+// scoped filmography as JSON.
+func (s *Server) handleGlobePins(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := strconv.Atoi(r.URL.Query().Get("person"))
+	if err != nil {
+		http.Error(w, "bad person id", http.StatusBadRequest)
+		return
+	}
+	person, err := s.tmdb.Person(ctx, id)
+	if err != nil {
+		s.log.Error("globe person fetch failed", "id", id, "err", err)
+		http.Error(w, "person load failed", http.StatusBadGateway)
+		return
+	}
+
+	limit := focusedFilmCap
+	if r.URL.Query().Get("scope") == "all" {
+		limit = allFilmCap
+	}
+	credits := personFilmCredits(person.Credits)
+	truncated := len(credits) > limit
+	if truncated {
+		credits = credits[:limit]
+	}
+
+	pins, resolved := s.resolveCreditPins(ctx, credits)
+	s.writeJSON(w, pinsResponse{
+		Pins:      pins,
+		Films:     len(credits),
+		Resolved:  resolved,
+		Truncated: truncated,
+	})
+}
+
+// personFilmCredits keeps a person's film credits, most famous first, deduped
+// by title so the same film is never resolved twice.
+func personFilmCredits(credits []model.Credit) []model.Credit {
+	seen := make(map[int]bool, len(credits))
+	films := make([]model.Credit, 0, len(credits))
+	for _, c := range credits {
+		if c.Kind != "movie" || c.TMDBID == 0 || seen[c.TMDBID] {
+			continue
+		}
+		seen[c.TMDBID] = true
+		films = append(films, c)
+	}
+	sort.SliceStable(films, func(i, j int) bool { return films[i].Votes > films[j].Votes })
+	return films
+}
+
+// resolveCreditPins looks up filming locations for each credit concurrently
+// and flattens them into globe pins tagged with their film. It returns the
+// pins and the count of films that produced at least one.
+func (s *Server) resolveCreditPins(ctx context.Context, credits []model.Credit) ([]globePin, int) {
+	type filmPins struct {
+		pins []globePin
+	}
+	results := make([]filmPins, len(credits))
+
+	sem := make(chan struct{}, globeWorkers)
+	var wg sync.WaitGroup
+	for i, credit := range credits {
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			continue
+		}
+		wg.Add(1)
+		go func(idx int, c model.Credit) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			results[idx] = filmPins{pins: s.filmPins(ctx, c)}
+		}(i, credit)
+	}
+	wg.Wait()
+
+	pins := make([]globePin, 0)
+	resolved := 0
+	for _, r := range results {
+		if len(r.pins) > 0 {
+			resolved++
+			pins = append(pins, r.pins...)
+		}
+	}
+	return pins, resolved
+}
+
+// filmPins resolves one credit to its located filming pins, tagged with the
+// film's title, year, page link, and the person's role. It returns nil when
+// the film has no IMDB id or no resolved coordinates.
+func (s *Server) filmPins(ctx context.Context, c model.Credit) []globePin {
+	movie, err := s.tmdb.Movie(ctx, c.TMDBID)
+	if err != nil || movie.IMDBID == "" {
+		return nil
+	}
+	located, err := s.locator.Locate(ctx, movie.IMDBID)
+	if err != nil {
+		return nil
+	}
+	role := c.Character
+	if role == "" {
+		role = c.Job
+	}
+	movieURL := "/movie?id=" + strconv.Itoa(c.TMDBID)
+	pins := make([]globePin, 0, len(located.Filming))
+	for _, loc := range located.Filming {
+		if !loc.Resolved {
+			continue
+		}
+		pins = append(pins, globePin{
+			Name: loc.Name, Source: loc.Source,
+			Lat: loc.Latitude, Lon: loc.Longitude,
+			Maps: loc.MapsURL, Earth: loc.EarthURL,
+			Film: c.Title, Year: c.Year, MovieURL: movieURL, Role: role,
+		})
+	}
+	return pins
+}
+
+// writeJSON marshals a value as the JSON body of a successful response.
+func (s *Server) writeJSON(w http.ResponseWriter, v any) {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		s.log.Error("json marshal failed", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = w.Write(raw)
 }
 
 // render executes a page template into a buffer so a failure can become a

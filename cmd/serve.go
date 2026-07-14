@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"runtime"
 
+	"github.com/dcadolph/cinatlas/internal/enhance"
 	"github.com/dcadolph/cinatlas/internal/logutil"
 	"github.com/dcadolph/cinatlas/internal/web"
 )
@@ -40,6 +41,10 @@ func runServe(ctx context.Context, args []string) int {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "cinatlas serve:", err)
 		return CodeError
+	}
+	if key := os.Getenv("CINATLAS_ANTHROPIC_KEY"); key != "" {
+		server.SetEnhancer(enhance.New(key, os.Getenv("CINATLAS_ENHANCER_MODEL"), log))
+		log.Info("mood enhancer enabled")
 	}
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
