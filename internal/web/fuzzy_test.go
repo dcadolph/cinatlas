@@ -58,3 +58,41 @@ func TestRelaxQuery(t *testing.T) {
 		})
 	}
 }
+
+func TestNameScore(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		Query   string
+		Name    string
+		AtLeast float64
+		AtMost  float64
+	}{ // Test 0: Exact name scores perfect.
+		{Query: "matthew mcconaughey", Name: "Matthew McConaughey", AtLeast: 1, AtMost: 1},
+		// Test 1: Correct first name, misspelled last still scores high.
+		{Query: "matthew mcaughnehey", Name: "Matthew McConaughey", AtLeast: 0.6, AtMost: 1},
+		// Test 2: A different Matthew stays below the misspelled real match's score.
+		{Query: "matthew mcaughnehey", Name: "Matthew Perry", AtLeast: 0, AtMost: 0.72},
+		// Test 3: Unrelated name scores low.
+		{Query: "matthew mcaughnehey", Name: "Emma Stone", AtLeast: 0, AtMost: 0.3},
+	}
+	for testNum, test := range tests {
+		t.Run(fmt.Sprintf("test %d", testNum), func(t *testing.T) {
+			t.Parallel()
+			got := nameScore(test.Query, test.Name)
+			if got < test.AtLeast || got > test.AtMost {
+				t.Errorf("nameScore(%q, %q) = %v, want in [%v, %v]",
+					test.Query, test.Name, got, test.AtLeast, test.AtMost)
+			}
+		})
+	}
+}
+
+func TestNameScoreRanksRealMatchFirst(t *testing.T) {
+	t.Parallel()
+	query := "matthew mcaughnehey"
+	real := nameScore(query, "Matthew McConaughey")
+	other := nameScore(query, "Matthew Perry")
+	if real <= other {
+		t.Errorf("want McConaughey (%v) to outrank Perry (%v)", real, other)
+	}
+}

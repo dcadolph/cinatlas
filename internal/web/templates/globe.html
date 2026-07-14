@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} · the globe · cinatlas</title>
+<title>{{if eq .Mode "person"}}{{.Name}}{{else if eq .Mode "movie"}}{{.Title}}{{else}}the globe{{end}} · cinatlas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@1,500&display=swap" rel="stylesheet">
@@ -47,11 +47,55 @@
   }
   .globe-title a { color: var(--gold); text-decoration: none; }
   .globe-title a:hover { text-decoration: underline; }
-  #map { position: fixed; inset: 0; }
-  .pin-popup { font: 13px/1.5 -apple-system, sans-serif; }
-  .pin-popup b { display: block; margin-bottom: 4px; }
-  .pin-popup a { color: #a87718; margin-right: 10px; }
-  .maplibregl-popup-content { border-radius: 10px; }
+  #map { position: fixed; inset: 0; background: #05060a; }
+  /* Cinematic vignette floats above the map, below the controls. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    background: radial-gradient(130% 130% at 50% 42%, rgba(5, 6, 10, 0) 46%, rgba(5, 6, 10, 0.55) 78%, rgba(5, 6, 10, 0.92) 100%);
+  }
+
+  /* Glowing filming pins. The outer .gpin is positioned by MapLibre, so it
+     carries no transform of its own; the inner .gpin-dot holds every visual
+     and is the only thing that scales, keeping the pin fixed to its coord. */
+  .gpin { width: 13px; height: 13px; cursor: pointer; }
+  .gpin-dot {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 30%, #fff2cf, #e8b13c 58%, #7a4b00);
+    box-shadow: 0 0 0 1.5px rgba(255, 231, 179, 0.35), 0 0 10px 3px rgba(232, 177, 60, 0.55);
+    transition: transform 0.16s ease, box-shadow 0.16s ease;
+  }
+  .gpin-coarse { width: 9px; height: 9px; }
+  .gpin-coarse .gpin-dot {
+    opacity: 0.7;
+    background: radial-gradient(circle at 32% 30%, #d8c7a0, #b08a3a 60%, #5c3f10);
+    box-shadow: 0 0 6px 2px rgba(176, 138, 58, 0.4);
+  }
+  .gpin.hot .gpin-dot {
+    transform: scale(1.6);
+    box-shadow: 0 0 0 2px rgba(255, 231, 179, 0.6), 0 0 18px 6px rgba(232, 177, 60, 0.85);
+  }
+  .pin-popup { font: 13px/1.5 -apple-system, sans-serif; max-width: 220px; }
+  .pin-popup b { display: block; margin-bottom: 2px; color: var(--fg); }
+  .pin-popup .film { color: var(--dim); font-style: italic; margin-bottom: 6px; }
+  .pin-popup .film a { color: var(--gold); text-decoration: none; }
+  .pin-popup .film a:hover { text-decoration: underline; }
+  .pin-popup .links a { color: var(--gold); margin-right: 10px; font-size: 12px; }
+  .maplibregl-popup-content {
+    border-radius: 12px;
+    background: rgba(12, 14, 20, 0.94);
+    border: 1px solid var(--gold-line);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    padding: 12px 14px;
+  }
+  .maplibregl-popup-tip { display: none; }
+  .maplibregl-ctrl-group { background: rgba(12, 14, 20, 0.9); }
+  .maplibregl-ctrl-group button + button { border-top-color: var(--gold-line); }
   .empty-note {
     position: fixed;
     left: 50%; top: 50%;
@@ -62,88 +106,138 @@
     border: 1px solid var(--gold-line);
     border-radius: 12px;
     padding: 16px 22px;
+    text-align: center;
+  }
+
+  /* Person control panel. */
+  .globe-panel {
+    position: fixed;
+    top: 64px; left: 22px;
+    z-index: 20;
+    width: 268px;
+    max-width: calc(100vw - 44px);
+    background: rgba(8, 9, 12, 0.86);
+    border: 1px solid var(--gold-line);
+    border-radius: 14px;
+    padding: 16px;
+    backdrop-filter: blur(6px);
+  }
+  .globe-panel .who { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .globe-panel .who img { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; }
+  .globe-panel .who .name { font-family: "Bebas Neue", sans-serif; font-size: 22px; line-height: 1.1; }
+  .globe-panel .who .name a { color: var(--fg); text-decoration: none; }
+  .globe-panel .who .sub { color: var(--dim); font-size: 12px; }
+  .globe-filter {
+    width: 100%;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--gold-line);
+    border-radius: 8px;
+    color: var(--fg);
+    font: 13px -apple-system, sans-serif;
+  }
+  .globe-filter::placeholder { color: var(--dim); }
+  .scope-toggle { display: flex; gap: 6px; margin-top: 10px; }
+  .scope-toggle a {
+    flex: 1;
+    text-align: center;
+    padding: 6px 0;
+    font-size: 12px;
+    text-decoration: none;
+    color: var(--dim);
+    border: 1px solid var(--gold-line);
+    border-radius: 8px;
+  }
+  .scope-toggle a.active { color: #08090c; background: var(--gold); border-color: var(--gold); font-weight: 600; }
+  .globe-count { margin-top: 10px; font-size: 12px; color: var(--dim); }
+  .globe-count .spin { color: var(--gold); }
+
+  /* Landing prompt. */
+  .globe-landing {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 24px;
+    text-align: center;
+    pointer-events: none;
+  }
+  .globe-landing h1 { font-family: "Bebas Neue", sans-serif; font-size: 44px; margin: 0; letter-spacing: 1px; }
+  .globe-landing p { color: var(--dim); margin: 0; max-width: 420px; }
+  .globe-landing form { display: flex; gap: 8px; width: 100%; max-width: 420px; pointer-events: auto; }
+  .globe-landing input {
+    flex: 1;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--gold-line);
+    border-radius: 10px;
+    color: var(--fg);
+    font: 15px -apple-system, sans-serif;
+  }
+  .globe-landing button {
+    padding: 12px 18px;
+    background: var(--gold);
+    color: #08090c;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
   }
 </style>
 </head>
 <body>
 
+{{if eq .Mode "person"}}
+<header class="globe-bar">
+  <a class="brand" href="/">cin<b>•</b>atlas</a>
+</header>
+<aside class="globe-panel" data-globe data-mode="person" data-person="{{.PersonID}}" data-scope="{{.Scope}}">
+  <div class="who">
+    {{if .PhotoURL}}<img src="{{.PhotoURL}}" alt="">{{end}}
+    <div>
+      <div class="name"><a href="{{.PersonURL}}">{{.Name}}</a></div>
+      <div class="sub">filming atlas</div>
+    </div>
+  </div>
+  <input class="globe-filter" type="search" placeholder="Filter by film or place…" aria-label="Filter pins">
+  <div class="scope-toggle">
+    <a href="/globe?person={{.PersonID}}&scope=focused" class="{{if ne .Scope "all"}}active{{end}}">Focused</a>
+    <a href="/globe?person={{.PersonID}}&scope=all" class="{{if eq .Scope "all"}}active{{end}}">All films</a>
+  </div>
+  <div class="globe-count"><span class="spin">Resolving filming locations…</span></div>
+</aside>
+<div id="map"></div>
+
+{{else if eq .Mode "movie"}}
 <header class="globe-bar">
   <a class="brand" href="/">cin<b>•</b>atlas</a>
   <span class="globe-title">{{.Title}}{{if .Year}} ({{.Year}}){{end}} · <a href="{{.MovieURL}}">back to the film</a></span>
 </header>
+<div id="map" data-globe data-mode="movie"></div>
+<script id="movie-pins" type="application/json">{{.Pins}}</script>
 
-<div id="map"></div>
+{{else}}
+<header class="globe-bar">
+  <a class="brand" href="/">cin<b>•</b>atlas</a>
+</header>
+<div id="map" data-globe data-mode="landing"></div>
+<div class="globe-landing">
+  <h1>Whose atlas?</h1>
+  <p>Name an actor or director and watch every place they ever filmed light up across the globe.</p>
+  <form action="/globe" method="get">
+    <input type="text" name="q" placeholder="Name an actor or director…" data-hints aria-label="Person name">
+    <button type="submit">Spin the globe</button>
+  </form>
+</div>
+{{end}}
 
 <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-<script>
-  const PINS = {{.Pins}};
-
-  const map = new maplibregl.Map({
-    container: "map",
-    style: {
-      version: 8,
-      sources: {
-        carto: {
-          type: "raster",
-          tiles: [
-            "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-            "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-            "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
-          ],
-          tileSize: 256,
-          attribution: "© OpenStreetMap contributors © CARTO"
-        }
-      },
-      layers: [{ id: "carto", type: "raster", source: "carto" }]
-    },
-    center: [0, 20],
-    zoom: 1.6,
-    attributionControl: { compact: true }
-  });
-  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
-
-  map.on("style.load", () => {
-    try {
-      map.setProjection({ type: "globe" });
-    } catch (_) {
-      // Older engines fall back to the flat map.
-    }
-  });
-
-  for (const pin of PINS) {
-    const popup = document.createElement("div");
-    popup.className = "pin-popup";
-    const name = document.createElement("b");
-    name.textContent = pin.name;
-    popup.appendChild(name);
-    for (const [label, href] of [["Maps ↗", pin.maps], ["Earth ↗", pin.earth]]) {
-      if (!href) continue;
-      const a = document.createElement("a");
-      a.href = href;
-      a.target = "_blank";
-      a.rel = "noopener";
-      a.textContent = label;
-      popup.appendChild(a);
-    }
-    new maplibregl.Marker({ color: "#e8b13c" })
-      .setLngLat([pin.lon, pin.lat])
-      .setPopup(new maplibregl.Popup({ offset: 22 }).setDOMContent(popup))
-      .addTo(map);
-  }
-
-  if (PINS.length > 1) {
-    const bounds = new maplibregl.LngLatBounds();
-    for (const pin of PINS) bounds.extend([pin.lon, pin.lat]);
-    map.fitBounds(bounds, { padding: 90, maxZoom: 8, duration: 1600 });
-  } else if (PINS.length === 1) {
-    map.flyTo({ center: [PINS[0].lon, PINS[0].lat], zoom: 5.5, duration: 1600 });
-  } else {
-    const note = document.createElement("div");
-    note.className = "empty-note";
-    note.textContent = "No pinned coordinates for this film yet.";
-    document.body.appendChild(note);
-  }
-</script>
+<script src="/static/globe.js"></script>
+<script src="/static/hints.js"></script>
 
 </body>
 </html>

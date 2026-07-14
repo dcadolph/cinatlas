@@ -37,7 +37,7 @@
     <form class="search-form" action="/search" method="get">
       <div class="search-box">
         <input class="search-input" type="search" name="q" value="{{.Query}}" id="search-input"
-               placeholder="A film, a person, or a place. One box finds them all."
+               placeholder="A film, a person, or a place. One box finds them all." data-hints
                autocomplete="off" {{if not .Movie}}{{if not .Person}}autofocus{{end}}{{end}}>
         <button type="button" class="search-clear" id="search-clear" aria-label="Clear search" title="Clear" hidden>×</button>
       </div>
@@ -328,6 +328,7 @@
             <div class="chips">
               {{if .KnownFor}}<span class="chip chip-gold">{{.KnownFor}}</span>{{end}}
             </div>
+            <a class="btn-primary globe-btn" href="/globe?person={{.TMDBID}}">Their filming globe 🌍</a>
             {{if .IMDBURL}}<a class="btn-ghost" href="{{.IMDBURL}}">IMDB ↗</a>{{end}}
           </div>
         </div>
@@ -609,5 +610,6 @@
 <script src="/static/watch.js"></script>
 <script src="/static/people.js"></script>
 <script src="/static/search.js"></script>
+<script src="/static/hints.js"></script>
 </body>
 </html>
