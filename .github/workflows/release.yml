@@ -45,13 +45,16 @@ jobs:
           go build -trimpath -ldflags "-s -w" -o "$name" .
           base="cinatlas-${TAG}-${GOOS}-${GOARCH}"
           if [ "$GOOS" = "windows" ]; then
-            zip "${base}.zip" "$name"
+            asset="${base}.zip"
+            zip "$asset" "$name"
           else
-            tar czf "${base}.tar.gz" "$name"
+            asset="${base}.tar.gz"
+            tar czf "$asset" "$name"
           fi
+          echo "ASSET=$asset" >> "$GITHUB_ENV"
 
       - name: Attach to release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" cinatlas-*.tar.gz cinatlas-*.zip --clobber
+        run: gh release upload "$TAG" "$ASSET" --clobber
