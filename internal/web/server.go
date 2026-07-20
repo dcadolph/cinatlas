@@ -157,9 +157,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /globe", s.handleGlobe)
 	mux.HandleFunc("GET /globe/pins", s.handleGlobePins)
 	mux.HandleFunc("GET /fit", s.handleFit)
-	mux.Handle("GET /static/", http.FileServerFS(siteFS))
+	mux.Handle("GET /static/", cacheStatic(http.FileServerFS(siteFS)))
+	mux.HandleFunc("GET /robots.txt", s.handleRobots)
 	mux.HandleFunc("/", s.handleNotFound)
-	return mux
+	return compress(mux)
 }
 
 // handleNotFound renders a styled 404 for unknown paths.
