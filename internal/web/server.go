@@ -24,6 +24,7 @@ import (
 	"github.com/dcadolph/cinatlas/internal/imdb"
 	"github.com/dcadolph/cinatlas/internal/locate"
 	"github.com/dcadolph/cinatlas/internal/model"
+	"github.com/dcadolph/cinatlas/internal/sin"
 	"github.com/dcadolph/cinatlas/internal/taste"
 	"github.com/dcadolph/cinatlas/internal/tmdb"
 )
@@ -60,9 +61,14 @@ type Server struct {
 	triggers ddd.TriggerSource
 	// finder runs the family fit pipeline.
 	finder *fitfind.Finder
+	// sin runs the adults-only discovery lens.
+	sin *sin.Finder
 	// enhancer refines mood queries beyond the lexicon, nil when no model is
 	// wired; the lexicon then answers on its own.
 	enhancer taste.Enhancer
+	// sinEnhancer refines sin-mode queries without sanitizing them, nil when
+	// no model is wired.
+	sinEnhancer taste.Enhancer
 	// tmpl holds the parsed page templates.
 	tmpl *template.Template
 	// log receives request diagnostics.
@@ -98,6 +104,7 @@ func New(client *tmdb.HTTPClient, locator locate.Atlas, triggers ddd.TriggerSour
 		locator:  locator,
 		triggers: triggers,
 		finder:   fitfind.New(client, triggers, log),
+		sin:      sin.New(client, log),
 		tmpl:     tmpl,
 		log:      log,
 	}, nil
@@ -107,6 +114,12 @@ func New(client *tmdb.HTTPClient, locator locate.Atlas, triggers ddd.TriggerSour
 // lexicon to answer on its own.
 func (s *Server) SetEnhancer(e taste.Enhancer) {
 	s.enhancer = e
+}
+
+// SetSinEnhancer wires an optional sin-mode query enhancer. Passing nil
+// leaves the lexicon and anchor vocabulary to answer on their own.
+func (s *Server) SetSinEnhancer(e taste.Enhancer) {
+	s.sinEnhancer = e
 }
 
 // formatRuntime renders minutes as "1h 38m".
@@ -140,6 +153,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /person", s.handlePerson)
 	mux.HandleFunc("GET /place", s.handlePlace)
 	mux.HandleFunc("GET /find", s.handleFind)
+	mux.HandleFunc("GET /sin", s.handleSin)
 	mux.HandleFunc("GET /globe", s.handleGlobe)
 	mux.HandleFunc("GET /globe/pins", s.handleGlobePins)
 	mux.HandleFunc("GET /fit", s.handleFit)
@@ -712,7 +726,7 @@ func (s *Server) resolveKeywords(ctx context.Context, terms []string) []int {
 			continue
 		}
 		if len(matches) > 0 {
-			ids = append(ids, matches[0])
+			ids = append(ids, matches[0].ID)
 		}
 	}
 	return ids

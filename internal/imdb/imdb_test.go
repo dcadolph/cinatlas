@@ -77,3 +77,27 @@ func TestNameURL(t *testing.T) {
 		})
 	}
 }
+
+// TestParentalGuideURL checks parents guide link building across valid and
+// invalid ids.
+func TestParentalGuideURL(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		In         string
+		WantResult string
+	}{{ // Test 0: Standard title id.
+		In: "tt0103772", WantResult: "https://www.imdb.com/title/tt0103772/parentalguide/",
+	}, { // Test 1: Empty id yields no link.
+		In: "", WantResult: "",
+	}, { // Test 2: Name id yields no link.
+		In: "nm0000123", WantResult: "",
+	}}
+	for testNum, test := range tests {
+		t.Run(fmt.Sprintf("test %d", testNum), func(t *testing.T) {
+			t.Parallel()
+			if got := ParentalGuideURL(test.In); got != test.WantResult {
+				t.Errorf("ParentalGuideURL(%q) = %q, want %q", test.In, got, test.WantResult)
+			}
+		})
+	}
+}

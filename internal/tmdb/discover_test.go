@@ -103,3 +103,72 @@ func TestCertification(t *testing.T) {
 		})
 	}
 }
+
+// TestDiscoverCertificationGTE checks the floor parameter reaches the API with
+// its country and without a stray ceiling.
+func TestDiscoverCertificationGTE(t *testing.T) {
+	t.Parallel()
+	var query url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/discover/movie" {
+			query = r.URL.Query()
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results":[]}`))
+	}))
+	t.Cleanup(srv.Close)
+	if _, err := newClient(t, srv).Discover(context.Background(), DiscoverQuery{CertificationGTE: "NC-17"}); err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if got := query.Get("certification_country"); got != "US" {
+		t.Errorf("certification_country = %q, want US", got)
+	}
+	if got := query.Get("certification.gte"); got != "NC-17" {
+		t.Errorf("certification.gte = %q, want NC-17", got)
+	}
+	if got := query.Get("certification.lte"); got != "" {
+		t.Errorf("certification.lte = %q, want empty", got)
+	}
+}
+
+// TestMovieThemes checks the one-call bundle: lowercased keywords, the US
+// certification, the IMDB id, and the vote count.
+func TestMovieThemes(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, map[string]string{
+		"/movie/9": `{"id":9,"imdb_id":"tt0103772","vote_count":4200,
+			"keywords":{"keywords":[{"id":1,"name":"Eroticism"},{"id":2,"name":"Female Nudity"}]},
+			"release_dates":{"results":[
+				{"iso_3166_1":"DE","release_dates":[{"certification":"16"}]},
+				{"iso_3166_1":"US","release_dates":[{"certification":""},{"certification":"R"}]}]}}`,
+	})
+	got, err := newClient(t, srv).MovieThemes(context.Background(), 9)
+	if err != nil {
+		t.Fatalf("MovieThemes: %v", err)
+	}
+	want := Themes{
+		Keywords:      []string{"eroticism", "female nudity"},
+		Certification: "R",
+		IMDBID:        "tt0103772",
+		Votes:         4200,
+	}
+	if diff := cmp.Diff(want, got, cmpopts.EquateEmpty()); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestKeyword checks match decoding in relevance order.
+func TestKeyword(t *testing.T) {
+	t.Parallel()
+	srv := newServer(t, map[string]string{
+		"/search/keyword": `{"results":[{"id":9999,"name":"heist gone wrong"},{"id":5,"name":"heist"}]}`,
+	})
+	got, err := newClient(t, srv).Keyword(context.Background(), "heist")
+	if err != nil {
+		t.Fatalf("Keyword: %v", err)
+	}
+	want := []KeywordMatch{{ID: 9999, Name: "heist gone wrong"}, {ID: 5, Name: "heist"}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+}

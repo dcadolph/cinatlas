@@ -34,6 +34,8 @@ type Client struct {
 	api anthropic.Client
 	// model is the model id to call.
 	model string
+	// prompt is the system prompt framing how queries are read.
+	prompt string
 	// log receives diagnostics.
 	log *slog.Logger
 }
@@ -52,16 +54,32 @@ func New(apiKey, model string, log *slog.Logger) *Client {
 		model = DefaultModel
 	}
 	return &Client{
-		api:   anthropic.NewClient(option.WithAPIKey(apiKey)),
-		model: model,
-		log:   log,
+		api:    anthropic.NewClient(option.WithAPIKey(apiKey)),
+		model:  model,
+		prompt: systemPrompt,
+		log:    log,
 	}
+}
+
+// Sin returns a copy of the client that reads queries inside the 18+ lens,
+// where sexual content is the point rather than a nuance to soften.
+func (c *Client) Sin() *Client {
+	out := *c
+	out.prompt = sinSystemPrompt
+	return &out
 }
 
 // systemPrompt tells the model how to read a mood into discovery filters.
 const systemPrompt = `You translate a moviegoer's plain-language mood into movie discovery filters.
 Read what they actually want to watch, not the literal words. "cozy rainy day" is warm low-stakes drama and comedy, not children's animation. "sexy" is adult romance and eroticism. "mind-bending" is psychological thrillers and twists.
+Sexual and queer themes are legitimate reads, not something to sanitize: "movies about cheating" is affair and adultery keywords, "lesbian romance" is lesbian and lgbt keywords with Romance. Map what was asked, plainly.
 Call the set_intent tool exactly once with your reading. Pick genres only from the allowed list. Use keywords for concrete themes the genres do not capture (animals, heist, time travel, dark, feel-good). Set min_rating or min_votes only when the request implies quality or fame ("acclaimed", "memorable", "hidden gem"). Set years only when an era is implied. Choose sort by what matters most: rating for quality requests, recent for new releases, otherwise popularity.`
+
+// sinSystemPrompt reads queries inside the opted-in 18+ lens, where sexual
+// content is the point of the search rather than a nuance to soften.
+const sinSystemPrompt = `You translate a moviegoer's plain-language mood into movie discovery filters.
+The viewer has opted into an 18+ discovery lens for erotic mainstream cinema, so sexual content is the point of every query. "steamy 90s" is erotic thrillers and eroticism keywords bounded to the 1990s, not gentle romance. Prefer concrete sexual-theme keywords the community tags films with: eroticism, nudity, sex scene, erotic thriller, softcore, affair, seduction, lgbt. Mainstream film only; never anything outside theatrical cinema.
+Call the set_intent tool exactly once with your reading. Pick genres only from the allowed list. Set min_rating or min_votes only when the request implies quality or fame. Set years only when an era is implied. Choose sort by what matters most: rating for quality requests, recent for new releases, otherwise popularity.`
 
 // Enhance asks the model to refine the lexicon intent and merges its reading.
 // On any error it returns the base intent unchanged so discovery still runs.
@@ -69,7 +87,7 @@ func (c *Client) Enhance(ctx context.Context, query string, base taste.Intent) (
 	msg, err := c.api.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.Model(c.model),
 		MaxTokens: maxTokens,
-		System:    []anthropic.TextBlockParam{{Text: systemPrompt}},
+		System:    []anthropic.TextBlockParam{{Text: c.prompt}},
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock("Mood: " + query)),
 		},

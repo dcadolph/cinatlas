@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>cinatlas · after dark</title>
+<meta name="description" content="The adults-only shelf of mainstream cinema: erotic thrillers, scandals, and skin, ranked by heat.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@1,500;1,600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" type="image/png" href="/static/logo.png">
+</head>
+<body class="sin-mode">
+
+{{template "topbar" "after dark"}}
+<div class="marquee-lights" aria-hidden="true"></div>
+
+<main class="wrap">
+
+  {{if .PersonName}}
+  <section class="find-panel">
+    <div class="sin-person">
+      {{if .PersonPhoto}}<img class="sin-person-photo" src="{{.PersonPhoto}}" alt="{{.PersonName}}">{{end}}
+      <div>
+        <h1 class="find-head">{{.PersonName}}, after dark <span class="sin-devil" aria-hidden="true">😈</span></h1>
+        <p class="find-sub">Their billed films with heat on screen, hottest first. Nothing here got in on a rating alone.</p>
+        <div class="sin-links sin-person-links">
+          {{range .PersonLinks}}
+          <a href="{{.URL}}" target="_blank" rel="nofollow noopener"{{if .Explicit}} class="sin-link-explicit"{{end}}>{{.Label}}</a>
+          {{end}}
+          <a href="/person?id={{.PersonID}}">Full filmography</a>
+          <a href="/sin">The back room</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  {{else}}
+  <section class="find-panel">
+    <h1 class="find-head">The back room <span class="sin-devil" aria-hidden="true">😈</span></h1>
+    <p class="find-sub">Mainstream cinema's racy shelf: rated R and beyond, picked by what is actually on screen, never by rating alone. War movies cannot get in on an R. Pornography cannot get in at all.</p>
+    <form class="find-form" action="/sin" method="get">
+      <textarea class="find-input" name="q" rows="2"
+        placeholder="steamy 90s thriller with a femme fatale">{{.Query}}</textarea>
+      <button class="btn-primary" type="submit">Tempt me</button>
+    </form>
+    <div class="chips sin-chips">
+      {{range .Chips}}
+      <a class="chip{{if eq $.Active .Slug}} chip-sin-active{{end}}" href="/sin?chip={{.Slug}}" title="{{.Blurb}}">{{.Label}}</a>
+      {{end}}
+    </div>
+    {{if .Blurb}}<p class="sin-blurb">{{.Blurb}}</p>{{end}}
+  </section>
+  {{end}}
+
+  {{if .Error}}
+  <section class="card notice">
+    <p>{{.Error}}</p>
+  </section>
+  {{end}}
+
+  {{if .Searched}}
+  <section class="find-results">
+    {{if .Enhanced}}
+    <div class="find-read">
+      <span class="chip chip-ai">AI refined</span>
+    </div>
+    {{end}}
+    {{if .Results}}
+    <section class="search-section">
+      <h2>{{if .PersonName}}The sinful filmography{{else if .ActiveLabel}}{{.ActiveLabel}}{{else}}Ranked by heat{{end}} <span class="count">{{len .Results}}</span></h2>
+      <div class="shelf">
+        {{range .Results}}
+        <div class="sin-card">
+          <a class="shelf-card" href="/movie?id={{.Movie.TMDBID}}" title="{{.Movie.Title}}{{if .Movie.Year}} ({{.Movie.Year}}){{end}}">
+            <div class="shelf-art">
+              {{if .Movie.PosterURL}}
+              <img src="{{.Movie.PosterURL}}" alt="{{.Movie.Title}}" loading="lazy">
+              {{else}}
+              <div class="art-empty art-title">{{.Movie.Title}}</div>
+              {{end}}
+              {{if .Movie.Year}}<span class="year-badge">{{.Movie.Year}}</span>{{end}}
+              {{if .Movie.Certification}}<span class="cert-badge">{{.Movie.Certification}}</span>{{end}}
+            </div>
+            <span class="shelf-title">{{.Movie.Title}}</span>
+          </a>
+          <div class="sin-links">
+            {{range .Links}}
+            <a href="{{.URL}}" target="_blank" rel="nofollow noopener"{{if .Explicit}} class="sin-link-explicit"{{end}}>{{.Label}}</a>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
+      </div>
+    </section>
+    {{else}}
+    <p class="find-empty">Even the back room came up empty. Try another shade of trouble.</p>
+    {{end}}
+  </section>
+  {{end}}
+
+</main>
+
+<div class="sin-gate" id="sin-gate">
+  <div class="sin-gate-card">
+    <div class="sin-gate-devil" aria-hidden="true">😈</div>
+    <h2>The back room is 18+</h2>
+    <p>Everything here is mainstream cinema, but the themes are adult and some outbound links lead to explicit sites. No pornography lives on cinatlas.</p>
+    <div class="sin-gate-actions">
+      <button class="btn-primary" id="sin-enter" type="button">I'm 18 or older</button>
+      <a class="btn-ghost" href="/">Take me back</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var key = "cinatlas.sin18";
+  var gate = document.getElementById("sin-gate");
+  try {
+    if (localStorage.getItem(key) === "1") {
+      gate.remove();
+      return;
+    }
+  } catch (e) { /* storage blocked: the gate stays and still works below */ }
+  document.getElementById("sin-enter").addEventListener("click", function () {
+    try { localStorage.setItem(key, "1"); } catch (e) { /* session-only consent */ }
+    gate.remove();
+  });
+})();
+</script>
+
+</body>
+</html>

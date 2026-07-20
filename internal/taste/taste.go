@@ -114,10 +114,16 @@ var lexicon = []rule{
 	{phrases: []string{"revenge", "vengeance"}, keywords: []string{"revenge"}},
 	{phrases: []string{"survival", "stranded"}, keywords: []string{"survival"}},
 
-	// Romance and intimacy.
+	// Romance and intimacy. Sexuality themes map plainly: someone asking for
+	// affairs or queer stories gets them, nothing here is sanitized away.
 	{phrases: []string{"romantic", "romance", "love story", "date night"}, genres: []int{genreRomance}},
 	{phrases: []string{"sexy", "steamy", "erotic", "sensual", "seductive", "sultry", "raunchy"},
 		genres: []int{genreRomance}, keywords: []string{"erotic", "sensuality", "seduction"}},
+	{phrases: []string{"cheating", "affair", "affairs", "infidelity", "adultery", "unfaithful"},
+		keywords: []string{"affair", "adultery", "infidelity"}},
+	{phrases: []string{"lesbian", "lesbians", "sapphic"}, keywords: []string{"lesbian", "lgbt"}},
+	{phrases: []string{"gay", "queer", "lgbt", "lgbtq", "transgender"}, keywords: []string{"gay", "lgbt"}},
+	{phrases: []string{"nudity", "nude", "naked"}, keywords: []string{"nudity"}},
 
 	// Fear and the strange.
 	{phrases: []string{"scary", "horror", "terrifying", "creepy", "frightening", "spooky", "haunting"},

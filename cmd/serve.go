@@ -43,7 +43,9 @@ func runServe(ctx context.Context, args []string) int {
 		return CodeError
 	}
 	if key := os.Getenv("CINATLAS_ANTHROPIC_KEY"); key != "" {
-		server.SetEnhancer(enhance.New(key, os.Getenv("CINATLAS_ENHANCER_MODEL"), log))
+		enhancer := enhance.New(key, os.Getenv("CINATLAS_ENHANCER_MODEL"), log)
+		server.SetEnhancer(enhancer)
+		server.SetSinEnhancer(enhancer.Sin())
 		log.Info("mood enhancer enabled")
 	}
 	listener, err := net.Listen("tcp", *addr)

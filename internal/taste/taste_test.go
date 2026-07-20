@@ -151,3 +151,32 @@ func TestGenreIDByName(t *testing.T) {
 		})
 	}
 }
+
+// TestParseSexualityThemes checks sexuality and identity queries map plainly
+// instead of being sanitized away.
+func TestParseSexualityThemes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		Query        string
+		WantKeywords []string
+	}{{ // Test 0: Cheating maps to the affair cluster.
+		Query: "movies about cheating", WantKeywords: []string{"affair", "adultery", "infidelity"},
+	}, { // Test 1: Lesbian stories resolve directly.
+		Query: "a lesbian love story", WantKeywords: []string{"lesbian", "lgbt"},
+	}, { // Test 2: Queer blends with other rules untouched.
+		Query: "queer coming of age", WantKeywords: []string{"gay", "lgbt", "coming-of-age"},
+	}, { // Test 3: Nudity is a legitimate theme filter.
+		Query: "films with nudity", WantKeywords: []string{"nudity"},
+	}}
+	for testNum, test := range tests {
+		t.Run(fmt.Sprintf("test %d", testNum), func(t *testing.T) {
+			t.Parallel()
+			got := Parse(test.Query)
+			for _, k := range test.WantKeywords {
+				if !slices.Contains(got.Keywords, k) {
+					t.Errorf("keyword %q missing from %v", k, got.Keywords)
+				}
+			}
+		})
+	}
+}
