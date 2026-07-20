@@ -15,10 +15,21 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/dcadolph/cinatlas/internal/logutil"
 )
+
+// defaultMaxBytes caps the cache at 512 MB, comfortably under the small
+// ephemeral disks hosting platforms give containers.
+const defaultMaxBytes = 512 << 20
+
+// tmpMaxAge is how long an orphaned temp file may linger before a sweep
+// removes it. A healthy store renames its temp file within milliseconds.
+const tmpMaxAge = time.Hour
 
 // Option configures a Transport at construction time.
 type Option func(*Transport)
@@ -34,28 +45,40 @@ func WithRefresh(refresh bool) Option {
 	return func(t *Transport) { t.refresh = refresh }
 }
 
+// WithMaxBytes caps the cache directory at n bytes, evicting oldest entries
+// first. Zero or negative disables the cap.
+func WithMaxBytes(n int64) Option {
+	return func(t *Transport) { t.maxBytes = n }
+}
+
 // Transport is a caching HTTP round tripper backed by a directory of files.
 type Transport struct {
 	// dir is the cache directory. Empty disables caching entirely.
 	dir string
 	// ttl is how long entries stay fresh.
 	ttl time.Duration
+	// maxBytes bounds the directory size; zero or negative means no cap.
+	maxBytes int64
 	// refresh bypasses cache reads while still storing fresh responses.
 	refresh bool
 	// base performs the real requests.
 	base http.RoundTripper
 	// now returns the current time, overridable in tests.
 	now func() time.Time
+	// sweepMu lets one goroutine sweep while concurrent stores skip it.
+	sweepMu sync.Mutex
 }
 
-// New returns a Transport caching into dir with the given freshness window.
-// An empty dir yields a passthrough transport that never caches.
+// New returns a Transport caching into dir with the given freshness window
+// and the default size cap. An empty dir yields a passthrough transport that
+// never caches.
 func New(dir string, ttl time.Duration, opts ...Option) *Transport {
 	t := &Transport{
-		dir:  dir,
-		ttl:  ttl,
-		base: http.DefaultTransport,
-		now:  time.Now,
+		dir:      dir,
+		ttl:      ttl,
+		maxBytes: defaultMaxBytes,
+		base:     http.DefaultTransport,
+		now:      time.Now,
 	}
 	for _, opt := range opts {
 		opt(t)
@@ -93,9 +116,70 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		log.Debug("cache store failed", "err", err)
 	} else {
 		log.Debug("cache store", "host", req.URL.Host, "path", req.URL.Path)
+		t.sweep()
 	}
 	resp.Body = io.NopCloser(bytes.NewReader(body))
 	return resp, nil
+}
+
+// sweep deletes expired entries, stale temp files, and then the oldest
+// entries until the directory fits the byte cap, so the cache can never grow
+// without bound and fill a host's disk. It runs after stores; when one sweep
+// is already running, concurrent callers skip theirs.
+func (t *Transport) sweep() {
+	if !t.sweepMu.TryLock() {
+		return
+	}
+	defer t.sweepMu.Unlock()
+	dirents, err := os.ReadDir(t.dir)
+	if err != nil {
+		return
+	}
+	type cacheFile struct {
+		// path locates the file for removal.
+		path string
+		// size counts its bytes toward the cap.
+		size int64
+		// mod orders eviction, oldest first.
+		mod time.Time
+	}
+	files := make([]cacheFile, 0, len(dirents))
+	var total int64
+	now := t.now()
+	for _, d := range dirents {
+		info, err := d.Info()
+		if err != nil {
+			continue
+		}
+		path := filepath.Join(t.dir, d.Name())
+		if strings.HasPrefix(d.Name(), ".tmp-") {
+			if now.Sub(info.ModTime()) > tmpMaxAge {
+				_ = os.Remove(path)
+			}
+			continue
+		}
+		if !strings.HasSuffix(d.Name(), ".json") {
+			continue
+		}
+		if now.Sub(info.ModTime()) > t.ttl {
+			_ = os.Remove(path)
+			continue
+		}
+		files = append(files, cacheFile{path: path, size: info.Size(), mod: info.ModTime()})
+		total += info.Size()
+	}
+	if t.maxBytes <= 0 || total <= t.maxBytes {
+		return
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].mod.Before(files[j].mod) })
+	for _, f := range files {
+		if total <= t.maxBytes {
+			break
+		}
+		if os.Remove(f.path) == nil {
+			total -= f.size
+		}
+	}
 }
 
 // load reads a cache file and rebuilds the response. It reports false for

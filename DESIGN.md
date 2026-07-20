@@ -163,6 +163,7 @@ upstream data sites: TMDB, IMDB, Wikidata, and JustWatch.
 | Log level | `CINATLAS_LOG_LEVEL` | No |
 | Cache directory | `CINATLAS_CACHE_DIR` | No |
 | Cache freshness | `CINATLAS_CACHE_TTL` | No |
+| Cache size cap in MB | `CINATLAS_CACHE_MAX_MB` | No |
 
 ## Roadmap
 

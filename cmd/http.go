@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/dcadolph/cinatlas/internal/httpcache"
@@ -18,9 +19,14 @@ const httpTimeout = 30 * time.Second
 // defaultCacheTTL is how long cached API responses stay fresh.
 const defaultCacheTTL = 24 * time.Hour
 
+// defaultCacheMaxMB caps the response cache size in megabytes, keeping it
+// well under the small ephemeral disks hosting platforms give containers.
+const defaultCacheMaxMB = 512
+
 // newHTTPClient returns the shared HTTP client with the disk cache installed.
 func newHTTPClient(opt options) *http.Client {
-	transport := httpcache.New(cacheDir(), cacheTTL(), httpcache.WithRefresh(opt.Refresh))
+	transport := httpcache.New(cacheDir(), cacheTTL(),
+		httpcache.WithRefresh(opt.Refresh), httpcache.WithMaxBytes(cacheMaxBytes()))
 	return &http.Client{Timeout: httpTimeout, Transport: transport}
 }
 
@@ -52,4 +58,15 @@ func cacheTTL() time.Duration {
 		}
 	}
 	return defaultCacheTTL
+}
+
+// cacheMaxBytes returns the cache size cap, honoring the env override in
+// megabytes. Zero disables the cap.
+func cacheMaxBytes() int64 {
+	if v := os.Getenv("CINATLAS_CACHE_MAX_MB"); v != "" {
+		if mb, err := strconv.Atoi(v); err == nil && mb >= 0 {
+			return int64(mb) << 20
+		}
+	}
+	return defaultCacheMaxMB << 20
 }
