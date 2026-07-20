@@ -52,6 +52,7 @@ Environment:
   CINATLAS_LOG_LEVEL  Default stderr log level
   CINATLAS_CACHE_DIR  Response cache directory (default: OS user cache dir)
   CINATLAS_CACHE_TTL  Cache freshness window as a Go duration (default "24h")
+  CINATLAS_CACHE_MAX_MB  Cache size cap in megabytes, 0 for no cap (default 512)
 `
 
 // options holds flags common to every command.

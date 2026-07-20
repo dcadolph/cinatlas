@@ -162,3 +162,76 @@ func TestEmptyDirPassthrough(t *testing.T) {
 		t.Errorf("backend hits = %d, want 2", n)
 	}
 }
+
+// TestSweepEvictsOldestOverCap checks the byte cap holds by dropping the
+// oldest entries first, so the cache can never fill a small disk.
+func TestSweepEvictsOldestOverCap(t *testing.T) {
+	t.Parallel()
+	body := strings.Repeat("a", 1000)
+	srv, hits := newBackend(t, http.StatusOK, body)
+	dir := t.TempDir()
+	// Roughly 1.4 KB per stored entry; the cap fits two entries, not three.
+	tr := New(dir, time.Hour, WithMaxBytes(3000))
+
+	backdate := func(rawURL string, age time.Duration) {
+		parsed, err := url.Parse(rawURL)
+		if err != nil {
+			t.Fatalf("parse url: %v", err)
+		}
+		when := time.Now().Add(-age)
+		if err := os.Chtimes(filepath.Join(dir, cacheKey(parsed)+".json"), when, when); err != nil {
+			t.Fatalf("backdate: %v", err)
+		}
+	}
+	get(t, tr, srv.URL+"/a")
+	backdate(srv.URL+"/a", 30*time.Minute)
+	get(t, tr, srv.URL+"/b")
+	backdate(srv.URL+"/b", 20*time.Minute)
+	get(t, tr, srv.URL+"/c")
+
+	// The oldest entry is gone, so /a refetches. Storing it sweeps again,
+	// which evicts /b as the new oldest, while the newest entry stays cached.
+	get(t, tr, srv.URL+"/a")
+	if n := hits.Load(); n != 4 {
+		t.Errorf("backend hits after eviction = %d, want 4", n)
+	}
+	get(t, tr, srv.URL+"/c")
+	if n := hits.Load(); n != 4 {
+		t.Errorf("backend hits after cached read = %d, want 4", n)
+	}
+}
+
+// TestSweepRemovesExpiredAndTemps checks expired entries and stale temp files
+// are deleted from disk instead of lingering forever.
+func TestSweepRemovesExpiredAndTemps(t *testing.T) {
+	t.Parallel()
+	srv, _ := newBackend(t, http.StatusOK, "x")
+	dir := t.TempDir()
+	tr := New(dir, time.Hour)
+
+	get(t, tr, srv.URL+"/old")
+	parsed, err := url.Parse(srv.URL + "/old")
+	if err != nil {
+		t.Fatalf("parse url: %v", err)
+	}
+	oldPath := filepath.Join(dir, cacheKey(parsed)+".json")
+	stale := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(oldPath, stale, stale); err != nil {
+		t.Fatalf("backdate entry: %v", err)
+	}
+	tmpPath := filepath.Join(dir, ".tmp-orphan")
+	if err := os.WriteFile(tmpPath, []byte("x"), 0o644); err != nil {
+		t.Fatalf("write temp: %v", err)
+	}
+	if err := os.Chtimes(tmpPath, stale, stale); err != nil {
+		t.Fatalf("backdate temp: %v", err)
+	}
+
+	get(t, tr, srv.URL+"/fresh")
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Errorf("expired entry still on disk: %v", err)
+	}
+	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
+		t.Errorf("orphaned temp still on disk: %v", err)
+	}
+}
