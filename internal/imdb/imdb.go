@@ -45,3 +45,14 @@ func FullCreditsURL(id string) string {
 	}
 	return title + "fullcredits/"
 }
+
+// ParentalGuideURL returns the IMDB parents guide page for a title id, whose
+// sex and nudity section details exactly what is on screen.
+// It returns an empty string when the id is blank or not a title id.
+func ParentalGuideURL(id string) string {
+	title := TitleURL(id)
+	if title == "" {
+		return ""
+	}
+	return title + "parentalguide/"
+}

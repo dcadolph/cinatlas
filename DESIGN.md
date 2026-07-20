@@ -134,6 +134,20 @@ television), and genre, and sortable by fame, rating, year, or title. The
 role filter separates a person's acting from their directing and producing,
 which otherwise mix in one list.
 
+An after-dark lens lives behind the devil in the top bar, gated by an 18+
+confirmation stored locally. Selection is keyword-driven: films qualify by the
+sexual-theme tags the community gave them, never by rating alone, so an R
+earned by violence cannot enter. Anchor tags qualify a film on their own;
+booster tags only sharpen the heat ranking, which keeps chaste dramas about
+adjacent themes off the general shelf. Curated shelves cover erotic thrillers,
+grindhouse sleaze, the NC-17 canon, affairs, and queer desire, and every
+person page carries its own devil that runs the same lens over just their
+billed films. Each card links
+the IMDB parents guide and site-scoped searches on the nudity databases and
+the cut-comparison archive, marked explicit where they are. Everything is
+mainstream cinema: TMDB's adult catalog stays excluded, the page is noindexed,
+and pornography is permanently out of scope for the site.
+
 A menu in the top bar links search, the source, the design doc, and the
 upstream data sites: TMDB, IMDB, Wikidata, and JustWatch.
 

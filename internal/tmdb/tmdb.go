@@ -182,26 +182,28 @@ func (c *HTTPClient) Recommendations(ctx context.Context, id int) ([]model.Movie
 	return c.movieList(ctx, "/movie/"+strconv.Itoa(id)+"/recommendations")
 }
 
-// Keyword resolves a theme term to TMDB keyword ids, most relevant first. It
-// returns nil when nothing matches, which callers treat as "no constraint".
-func (c *HTTPClient) Keyword(ctx context.Context, term string) ([]int, error) {
+// KeywordMatch is one keyword tag the search endpoint returned.
+type KeywordMatch struct {
+	// ID is the TMDB keyword id discover filters by.
+	ID int `json:"id"`
+	// Name is the keyword's display name, lowercase on TMDB.
+	Name string `json:"name"`
+}
+
+// Keyword resolves a theme term to TMDB keyword matches, most relevant first.
+// It returns nil when nothing matches, which callers treat as "no constraint".
+func (c *HTTPClient) Keyword(ctx context.Context, term string) ([]KeywordMatch, error) {
 	term = strings.TrimSpace(term)
 	if term == "" {
 		return nil, nil
 	}
 	var out struct {
-		Results []struct {
-			ID int `json:"id"`
-		} `json:"results"`
+		Results []KeywordMatch `json:"results"`
 	}
 	if err := c.get(ctx, "/search/keyword", url.Values{"query": {term}}, &out); err != nil {
 		return nil, err
 	}
-	ids := make([]int, 0, len(out.Results))
-	for _, r := range out.Results {
-		ids = append(ids, r.ID)
-	}
-	return ids, nil
+	return out.Results, nil
 }
 
 // joinIDs renders ids as a separator-joined string for a query parameter.

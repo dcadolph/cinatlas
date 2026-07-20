@@ -1120,3 +1120,158 @@ a.shelf-card:hover .shelf-art {
   color: var(--dim);
   padding: 30px 0;
 }
+
+/* After dark: the back room behind the devil. Crimson swaps in for marquee
+   gold so every shared component re-skins, and the devil in the topbar only
+   wakes up in color when the cursor tempts it. */
+
+.devil-btn {
+  font-size: 17px;
+  line-height: 1;
+  filter: grayscale(1);
+  opacity: 0.5;
+  transition: filter 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+}
+.devil-btn:hover {
+  filter: none;
+  opacity: 1;
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+
+body.sin-mode {
+  --gold: #e0565f;
+  --gold-hi: #f07f86;
+  --gold-deep: #b23a42;
+  --gold-soft: rgba(224, 86, 95, 0.12);
+  --gold-line: rgba(224, 86, 95, 0.45);
+  --gold-glow: rgba(224, 86, 95, 0.22);
+}
+
+@media (prefers-color-scheme: light) {
+  body.sin-mode {
+    --gold: #b3383f;
+    --gold-hi: #c94a52;
+    --gold-deep: #93262e;
+    --gold-soft: rgba(179, 56, 63, 0.10);
+    --gold-line: rgba(179, 56, 63, 0.45);
+    --gold-glow: rgba(179, 56, 63, 0.18);
+  }
+}
+
+.sin-devil { font-size: 0.72em; vertical-align: 4px; }
+
+.sin-chips { margin-top: 16px; }
+a.chip:hover { text-decoration: none; border-color: var(--gold-line); color: var(--gold-hi); }
+.chip-sin-active {
+  color: var(--bg);
+  background: linear-gradient(135deg, var(--gold-hi), var(--gold-deep));
+  border-color: transparent;
+}
+a.chip-sin-active:hover { color: var(--bg); }
+
+.sin-blurb {
+  margin: 10px 0 0;
+  color: var(--dim);
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: 15px;
+}
+
+.sin-card { display: flex; flex-direction: column; }
+
+.cert-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-family: "Space Grotesk", sans-serif;
+  letter-spacing: 0.06em;
+  color: var(--gold-hi);
+  background: rgba(8, 9, 12, 0.78);
+  border: 1px solid var(--gold-line);
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.sin-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  padding: 5px 4px 0;
+  font-size: 11.5px;
+}
+.sin-links a { color: var(--faint); }
+.sin-links a:hover { color: var(--gold-hi); }
+.sin-link-explicit::after {
+  content: "18+";
+  margin-left: 3px;
+  font-size: 8.5px;
+  vertical-align: super;
+  color: var(--gold-deep);
+}
+
+/* The age gate: fail closed. Without the click, the room stays shut. */
+
+.sin-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.sin-gate-card {
+  max-width: 440px;
+  text-align: center;
+  background: var(--card);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
+  padding: 34px 30px 28px;
+  box-shadow: var(--shadow);
+}
+.sin-gate-devil { font-size: 46px; line-height: 1; margin-bottom: 10px; }
+.sin-gate-card h2 {
+  display: block;
+  margin: 0 0 8px;
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  color: var(--fg);
+}
+.sin-gate-card h2::after { content: none; }
+.sin-gate-card p { color: var(--dim); margin: 0 0 22px; }
+.sin-gate-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Person after-dark header. */
+
+.sin-person {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.sin-person-photo {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--gold-line);
+  box-shadow: 0 0 22px var(--gold-glow);
+}
+.sin-person-links { font-size: 13px; padding: 8px 0 0; }
+a.btn-ghost.devil-btn { font-size: 15px; }
