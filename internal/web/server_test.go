@@ -14,6 +14,7 @@ import (
 	"github.com/dcadolph/cinatlas/internal/logutil"
 	"github.com/dcadolph/cinatlas/internal/model"
 	"github.com/dcadolph/cinatlas/internal/tmdb"
+	"github.com/dcadolph/cinatlas/internal/wikidata"
 )
 
 // fakeAtlas answers fixed place facts in both directions.
@@ -28,6 +29,22 @@ func (fakeAtlas) Locate(_ context.Context, _ string) (*locate.Located, error) {
 		},
 		SetIn: []model.Location{model.UnresolvedLocation("Los Angeles", "wikidata")},
 	}, nil
+}
+
+// Doubles returns fixed stand-in pairings, and nothing for the place named
+// "nowhere" so the empty path can be exercised.
+func (fakeAtlas) Doubles(_ context.Context, place string, reverse bool) ([]wikidata.Stand, error) {
+	if place == "nowhere" {
+		return nil, nil
+	}
+	shot, played := "Vancouver", "New York City"
+	if reverse {
+		shot, played = played, shot
+	}
+	return []wikidata.Stand{{
+		Shot: shot, Played: played, KM: 3904,
+		Films: []wikidata.Film{{Title: "Titanic", Year: 1997, IMDBID: "tt0120338"}},
+	}}, nil
 }
 
 // At returns one fixed film for any place, reporting a multi-page total and

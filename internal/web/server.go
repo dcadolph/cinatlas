@@ -27,6 +27,7 @@ import (
 	"github.com/dcadolph/cinatlas/internal/sin"
 	"github.com/dcadolph/cinatlas/internal/taste"
 	"github.com/dcadolph/cinatlas/internal/tmdb"
+	"github.com/dcadolph/cinatlas/internal/wikidata"
 )
 
 //go:embed templates static
@@ -93,6 +94,8 @@ func New(client *tmdb.HTTPClient, locator locate.Atlas, triggers ddd.TriggerSour
 		"runtime":   formatRuntime,
 		"rating":    formatRating,
 		"shortDate": formatShortDate,
+		"km":        formatKM,
+		"first":     firstFilms,
 		"add":       func(a, b int) int { return a + b },
 		"sub":       func(a, b int) int { return a - b },
 	}).ParseFS(siteFS, "templates/*.html")
@@ -152,6 +155,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /movie", s.handleMovie)
 	mux.HandleFunc("GET /person", s.handlePerson)
 	mux.HandleFunc("GET /place", s.handlePlace)
+	mux.HandleFunc("GET /doubles", s.handleDoubles)
 	mux.HandleFunc("GET /find", s.handleFind)
 	mux.HandleFunc("GET /sin", s.handleSin)
 	mux.HandleFunc("GET /globe", s.handleGlobe)
@@ -200,6 +204,13 @@ type pageData struct {
 	Similar []model.Movie
 	// PlaceName is the place a reverse search matched.
 	PlaceName string
+	// Stands are the stand-in pairings for the doubles page.
+	Stands []wikidata.Stand
+	// StandsTotal counts every pairing found, which can exceed the page.
+	StandsTotal int
+	// Reverse reports that the doubles page is answering the flipped
+	// question, which places stood in for the one named.
+	Reverse bool
 	// PlaceMovies are one page of films shot at the searched place.
 	PlaceMovies []model.Movie
 	// PlaceTotal counts every film matched at the place.
@@ -510,6 +521,18 @@ func (s *Server) attachPlaces(ctx context.Context, movie *model.Movie) {
 // resolveMovieID picks the movie id from the id parameter or the top search
 // match, filling alternates and the error message as it goes.
 func (s *Server) resolveMovieID(ctx context.Context, r *http.Request, data *pageData) (int, bool) {
+	// An IMDB id is what Wikidata records, so links from the doubles page carry
+	// one rather than a TMDB id. Resolving it here keeps those links working
+	// without threading a second identifier through the place queries.
+	if imdbID := strings.TrimSpace(r.URL.Query().Get("imdb")); imdbID != "" {
+		movie, err := s.tmdb.FindByIMDB(ctx, imdbID)
+		if err != nil || movie == nil {
+			s.log.Error("imdb lookup failed", "imdb", imdbID, "err", err)
+			data.Error = "That film is not in the database under that id."
+			return 0, false
+		}
+		return movie.TMDBID, true
+	}
 	if idStr := r.URL.Query().Get("id"); idStr != "" {
 		id, err := strconv.Atoi(idStr)
 		if err != nil {

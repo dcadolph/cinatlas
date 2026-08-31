@@ -1275,3 +1275,92 @@ a.chip-sin-active:hover { color: var(--bg); }
 }
 .sin-person-links { font-size: 13px; padding: 8px 0 0; }
 a.btn-ghost.devil-btn { font-size: 15px; }
+
+/* Body doubles: one card per place a place has pretended to be. */
+.find-form:has(.doubles-flip) {
+  flex-wrap: wrap;
+}
+.doubles-flip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dim);
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.doubles-flip input {
+  accent-color: var(--gold);
+}
+.doubles-seed a {
+  color: var(--gold);
+}
+.doubles {
+  max-width: 820px;
+  margin: 0 auto;
+}
+.doubles-head {
+  font-family: "Bebas Neue", sans-serif;
+  font-size: clamp(24px, 4.5vw, 34px);
+  letter-spacing: 0.5px;
+  margin: 0 0 2px;
+  text-align: center;
+}
+.doubles-count {
+  color: var(--dim);
+  font-size: 14px;
+  text-align: center;
+  margin: 0 0 22px;
+}
+.stand {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 10px;
+}
+.stand-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.stand-other {
+  font-family: "Bebas Neue", sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.4px;
+  color: var(--gold);
+}
+.stand-meta {
+  color: var(--dim);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.stand-films {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 4px 18px;
+}
+.stand-films li {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stand-year {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
+}
+.stand-more {
+  color: var(--dim);
+  font-size: 13px;
+  margin: 8px 0 0;
+}

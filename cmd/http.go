@@ -34,7 +34,7 @@ func newHTTPClient(opt options) *http.Client {
 // client and TMDB client.
 func newLocator(h *http.Client, finder locate.IMDBFinder) *locate.Service {
 	wd := wikidata.New(wikidata.WithHTTPClient(h))
-	return locate.New(wd, wd, wikipedia.New(wikipedia.WithHTTPClient(h)), finder)
+	return locate.New(wd, wd, wd, wikipedia.New(wikipedia.WithHTTPClient(h)), finder)
 }
 
 // cacheDir returns the response cache directory, honoring the env override.

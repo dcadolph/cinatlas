@@ -33,6 +33,13 @@ func fixedPlaces(films []wikidata.Film) wikidata.PlaceSearcher {
 	})
 }
 
+// fixedDoubles returns canned stand-in pairings.
+func fixedDoubles(stands []wikidata.Stand) wikidata.DoublesFinder {
+	return wikidata.DoublesFinderFunc(func(_ context.Context, _ string, _ bool) ([]wikidata.Stand, error) {
+		return stands, nil
+	})
+}
+
 // mapFinder resolves IMDB ids from a fixed map, erroring on unknown ids.
 type mapFinder map[string]model.Movie
 
@@ -59,6 +66,7 @@ func TestLocateMerges(t *testing.T) {
 			ArticleTitle: "Heat_(1995_film)",
 		}),
 		fixedPlaces(nil),
+		fixedDoubles(nil),
 		fixedSections([]model.Location{
 			model.ResolvedLocation("Chicago", "wikipedia", 41.88, -87.63),
 			model.ResolvedLocation("Venice, Los Angeles", "wikipedia", 33.985, -118.47),
@@ -90,6 +98,7 @@ func TestLocateCountryFallback(t *testing.T) {
 			Countries: []model.Location{model.ResolvedLocation("United States", "country", 39.8, -98.5)},
 		}),
 		fixedPlaces(nil),
+		fixedDoubles(nil),
 		fixedSections(nil, nil),
 		mapFinder{},
 	)
@@ -114,6 +123,7 @@ func TestAt(t *testing.T) {
 			{Title: "Obscure Film", Year: 1962, IMDBID: "tt0000062", Place: "Los Angeles"},
 			{Title: "Beyond Limit", Year: 2000, IMDBID: "tt0000063", Place: "Los Angeles"},
 		}),
+		fixedDoubles(nil),
 		fixedSections(nil, nil),
 		mapFinder{
 			"tt0113277": {
@@ -160,6 +170,7 @@ func TestAtSortsAndFilters(t *testing.T) {
 				{Title: "Obscure Film", Year: 1962, IMDBID: "tt2"},
 				{Title: "Beyond Limit", Year: 2000, IMDBID: "tt3"},
 			}),
+			fixedDoubles(nil),
 			fixedSections(nil, nil),
 			mapFinder{},
 		)
@@ -215,6 +226,7 @@ func TestLocateToleratesMiningFailure(t *testing.T) {
 			ArticleTitle: "Heat_(1995_film)",
 		}),
 		fixedPlaces(nil),
+		fixedDoubles(nil),
 		fixedSections(nil, errors.New("api down")),
 		mapFinder{},
 	)

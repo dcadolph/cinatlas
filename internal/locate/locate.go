@@ -84,6 +84,7 @@ type AtResult struct {
 type Atlas interface {
 	Locator
 	At(ctx context.Context, place string, query AtQuery) (*AtResult, error)
+	Doubles(ctx context.Context, place string, reverse bool) ([]wikidata.Stand, error)
 }
 
 // IMDBFinder resolves an IMDB title id to a movie with images and ids.
@@ -101,16 +102,22 @@ type Service struct {
 	sections wikipedia.SectionLocator
 	// finder enriches reverse hits with posters and TMDB ids.
 	finder IMDBFinder
+	// doubles answers which places have stood in for which on screen.
+	doubles wikidata.DoublesFinder
 }
 
 // New returns a Service. It panics on nil dependencies, which are developer errors.
 func New(resolver wikidata.Resolver, places wikidata.PlaceSearcher,
-	sections wikipedia.SectionLocator, finder IMDBFinder) *Service {
+	doubles wikidata.DoublesFinder, sections wikipedia.SectionLocator,
+	finder IMDBFinder) *Service {
 	if resolver == nil {
 		panic("locate.New: wikidata resolver required")
 	}
 	if places == nil {
 		panic("locate.New: wikidata place searcher required")
+	}
+	if doubles == nil {
+		panic("locate.New: wikidata doubles finder required")
 	}
 	if sections == nil {
 		panic("locate.New: wikipedia section locator required")
@@ -118,7 +125,15 @@ func New(resolver wikidata.Resolver, places wikidata.PlaceSearcher,
 	if finder == nil {
 		panic("locate.New: imdb finder required")
 	}
-	return &Service{resolver: resolver, places: places, sections: sections, finder: finder}
+	return &Service{resolver: resolver, places: places, doubles: doubles,
+		sections: sections, finder: finder}
+}
+
+// Doubles reports the places the named place has stood in for on screen, or
+// with reverse set, the places that have stood in for it. It passes straight
+// through to Wikidata, which already holds both sides of the comparison.
+func (s *Service) Doubles(ctx context.Context, place string, reverse bool) ([]wikidata.Stand, error) {
+	return s.doubles.Doubles(ctx, place, reverse)
 }
 
 // At returns one page of movies filmed at the named place, plus totals and

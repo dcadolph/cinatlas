@@ -16,6 +16,20 @@ import (
 // other, so the row count runs well ahead of the film count.
 const maxDoublesRows = 800
 
+// DoublesFinder reports the places a named place has stood in for on screen,
+// or with reverse set, the places that have stood in for it.
+type DoublesFinder interface {
+	Doubles(ctx context.Context, place string, reverse bool) ([]Stand, error)
+}
+
+// DoublesFinderFunc adapts a function to the DoublesFinder interface.
+type DoublesFinderFunc func(ctx context.Context, place string, reverse bool) ([]Stand, error)
+
+// Doubles calls the underlying function.
+func (f DoublesFinderFunc) Doubles(ctx context.Context, place string, reverse bool) ([]Stand, error) {
+	return f(ctx, place, reverse)
+}
+
 // Stand is one place standing in for another on screen, with the films that
 // did it. A film is counted once per pair no matter how many rows it produced.
 type Stand struct {
@@ -25,6 +39,10 @@ type Stand struct {
 	Played string
 	// Films are the titles that made the swap, most sitelinked first.
 	Films []Film
+	// Spots are the specific places inside Shot that the camera recorded, when
+	// Wikidata pins a venue rather than the city. Empty when the pin already
+	// named the searched place.
+	Spots []string
 	// KM is the great-circle distance between the two places, zero when either
 	// side has no coordinates.
 	KM float64
@@ -53,7 +71,7 @@ func (c *HTTPClient) Doubles(ctx context.Context, place string, reverse bool) ([
 	if err != nil {
 		return nil, err
 	}
-	return rows.stands(), nil
+	return rows.stands(place, reverse), nil
 }
 
 // query runs one SPARQL request and returns the decoded result set.
@@ -120,30 +138,47 @@ ORDER BY DESC(?links)
 LIMIT ` + strconv.Itoa(maxDoublesRows)
 }
 
-// stands folds stand-in rows into one entry per shot and played pair, ordered
-// by how many films made the swap. One film pairing several filming locations
-// against several settings emits a row for every combination, so each film is
-// counted once per pair.
-func (r sparqlResponse) stands() []Stand {
-	type key struct{ shot, played string }
-	group := map[key]*Stand{}
+// stands folds stand-in rows into one entry per far-side place, ordered by how
+// many films made the swap.
+//
+// Grouping is by the far side alone, with anchor standing in for the near side.
+// Wikidata pins filming at whatever granularity an editor chose, so a single
+// film shot across seven Prague venues arrives as seven rows naming Strahov
+// Library, Wenceslas Square, and the rest. Keying on both sides would file each
+// venue as its own pairing and report one film seven times. The venue labels are
+// kept as Spots, since they are the interesting part once the count is right.
+func (r sparqlResponse) stands(anchor string, reverse bool) []Stand {
+	group := map[string]*Stand{}
 	seen := map[string]bool{}
+	spots := map[string]map[string]bool{}
 	for _, row := range r.Results.Bindings {
 		shot, played := row["shotLabel"].Value, row["setLabel"].Value
 		imdbID, title := row["imdb"].Value, row["filmLabel"].Value
 		if shot == "" || played == "" || shot == played || imdbID == "" || title == "" {
 			continue
 		}
-		k := key{shot, played}
-		if seen[k.shot+"|"+k.played+"|"+imdbID] {
+		far, near := played, shot
+		if reverse {
+			far, near = shot, played
+		}
+		if spots[far] == nil {
+			spots[far] = map[string]bool{}
+		}
+		if !strings.EqualFold(near, anchor) {
+			spots[far][near] = true
+		}
+		if seen[far+"|"+imdbID] {
 			continue
 		}
-		seen[k.shot+"|"+k.played+"|"+imdbID] = true
-		s := group[k]
+		seen[far+"|"+imdbID] = true
+		s := group[far]
 		if s == nil {
-			s = &Stand{Shot: shot, Played: played,
+			s = &Stand{Shot: anchor, Played: far,
 				KM: haversine(row["shotCoord"].Value, row["setCoord"].Value)}
-			group[k] = s
+			if reverse {
+				s.Shot, s.Played = far, anchor
+			}
+			group[far] = s
 		}
 		year := 0
 		if date := row["date"].Value; len(date) >= 4 {
@@ -154,7 +189,11 @@ func (r sparqlResponse) stands() []Stand {
 		s.Films = append(s.Films, Film{Title: title, Year: year, IMDBID: imdbID, Place: shot})
 	}
 	out := make([]Stand, 0, len(group))
-	for _, s := range group {
+	for far, s := range group {
+		for spot := range spots[far] {
+			s.Spots = append(s.Spots, spot)
+		}
+		sort.Strings(s.Spots)
 		out = append(out, *s)
 	}
 	sort.Slice(out, func(i, j int) bool {

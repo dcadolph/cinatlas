@@ -85,6 +85,9 @@ output marks the services you already have. Availability comes from TMDB's
 JustWatch-backed data and rotates as licensing windows change, so the cache is
 worth refreshing here more than elsewhere.
 
+The website carries the same thing at `/doubles`, linked from the top bar, with
+a checkbox to flip the direction.
+
 `serve` runs the cinatlas website locally on 127.0.0.1:8878 and opens it in your
 browser: one search box, poster and cast cards, filming locations on an embedded
 map. Same data, same cache, zero setup beyond the key.

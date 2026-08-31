@@ -26,7 +26,7 @@ func TestStandsGroups(t *testing.T) {
 		row("Titanic", "tt0120338", "1997-12-19", "180", "Vancouver", "New York City", "", ""),
 		row("Fifty Shades of Grey", "tt2322441", "2015-02-11", "70", "Vancouver", "Seattle", "", ""),
 	}
-	got := r.stands()
+	got := r.stands("Vancouver", false)
 	if len(got) != 2 {
 		t.Fatalf("stands() returned %d pairs, want 2: %+v", len(got), got)
 	}
@@ -37,6 +37,32 @@ func TestStandsGroups(t *testing.T) {
 	if got[1].Played != "Seattle" || len(got[1].Films) != 1 {
 		t.Errorf("second pair = %q with %d films, want Seattle with 1",
 			got[1].Played, len(got[1].Films))
+	}
+}
+
+// TestStandsCollapsesVenues checks the other half of that shape: Wikidata pins
+// filming at whatever granularity an editor chose, so one film shot across
+// several venues inside the searched place must still count once, under the
+// place, rather than filing each venue as its own pairing.
+func TestStandsCollapsesVenues(t *testing.T) {
+	t.Parallel()
+	var r sparqlResponse
+	for _, spot := range []string{"Strahov Library", "Wenceslas Square", "Danube House"} {
+		r.Results.Bindings = append(r.Results.Bindings,
+			row("Casino Royale", "tt0381061", "2006-11-14", "120", spot, "Italy", "", ""))
+	}
+	got := r.stands("Prague", false)
+	if len(got) != 1 {
+		t.Fatalf("stands() returned %d pairings, want 1: %+v", len(got), got)
+	}
+	if len(got[0].Films) != 1 {
+		t.Errorf("counted the film %d times, want 1", len(got[0].Films))
+	}
+	if got[0].Shot != "Prague" || got[0].Played != "Italy" {
+		t.Errorf("pairing = %q playing %q, want Prague playing Italy", got[0].Shot, got[0].Played)
+	}
+	if len(got[0].Spots) != 3 {
+		t.Errorf("kept %d venue labels, want 3: %v", len(got[0].Spots), got[0].Spots)
 	}
 }
 
@@ -51,7 +77,7 @@ func TestStandsCountsEachFilmOnce(t *testing.T) {
 		r.Results.Bindings = append(r.Results.Bindings,
 			row("The Piano", "tt0107822", "1993-05-19", "60", "New Zealand", "Scotland", "", ""))
 	}
-	got := r.stands()
+	got := r.stands("Vancouver", false)
 	if len(got) != 1 {
 		t.Fatalf("stands() returned %d pairs, want 1", len(got))
 	}
@@ -83,7 +109,7 @@ func TestStandsSkipsIncomplete(t *testing.T) {
 			t.Parallel()
 			var r sparqlResponse
 			r.Results.Bindings = []map[string]sparqlValue{test.Row}
-			if got := r.stands(); len(got) != 0 {
+			if got := r.stands("Vancouver", false); len(got) != 0 {
 				t.Errorf("stands() kept %+v, want it dropped", got)
 			}
 		})
@@ -100,7 +126,7 @@ func TestStandsDistance(t *testing.T) {
 			"Point(-123.1207 49.2827)", "Point(-74.0060 40.7128)"),
 		row("Heat", "tt0113277", "", "10", "Vancouver", "Seattle", "Point(-123.1207 49.2827)", ""),
 	}
-	got := r.stands()
+	got := r.stands("Vancouver", false)
 	var withCoords, without float64
 	for _, s := range got {
 		if s.Played == "New York City" {

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cinatlas · body doubles</title>
+<meta name="description" content="Every place the movies pretend is somewhere else. Vancouver has played New York twenty times over.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="cinatlas · body doubles">
+<meta property="og:description" content="Every place the movies pretend is somewhere else.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@1,500;1,600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" type="image/png" href="/static/logo.png">
+</head>
+<body>
+
+{{template "topbar" "the movies are lying about where they are"}}
+<div class="marquee-lights" aria-hidden="true"></div>
+
+<main class="wrap">
+
+  <section class="find-panel">
+    <h1 class="find-head">Body doubles</h1>
+    <p class="find-sub">
+      Films record where they shot and where they claim to be. When those disagree, a
+      place is wearing a disguise. Name one and see the disguises.
+    </p>
+    <form class="find-form" action="/doubles" method="get">
+      <input class="find-input" name="q" value="{{.Query}}" autofocus
+        placeholder="Vancouver, Prague, Toronto, Pinewood Studios">
+      <label class="doubles-flip">
+        <input type="checkbox" name="reverse" value="1" {{if .Reverse}}checked{{end}}>
+        Flip it: who has stood in for this place
+      </label>
+      <button class="btn-primary" type="submit">Show the disguises</button>
+    </form>
+    {{if not .Query}}
+    <p class="find-sub doubles-seed">
+      Try
+      <a href="/doubles?q=Vancouver">Vancouver</a>,
+      <a href="/doubles?q=Prague">Prague</a>,
+      <a href="/doubles?q=Toronto">Toronto</a>, or
+      <a href="/doubles?q=New+York+City&amp;reverse=1">who plays New York</a>.
+    </p>
+    {{end}}
+  </section>
+
+  {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+
+  {{if .Stands}}
+  <section class="doubles">
+    <h2 class="doubles-head">
+      {{if .Reverse}}{{.PlaceName}} has been played by{{else}}{{.PlaceName}} has played{{end}}
+    </h2>
+    <p class="doubles-count">
+      {{.StandsTotal}} recorded {{if eq .StandsTotal 1}}pairing{{else}}pairings{{end}}
+    </p>
+
+    {{range .Stands}}
+    <article class="stand">
+      <header class="stand-head">
+        <span class="stand-other">{{if $.Reverse}}{{.Shot}}{{else}}{{.Played}}{{end}}</span>
+        <span class="stand-meta">
+          {{len .Films}} {{if eq (len .Films) 1}}film{{else}}films{{end}}{{if .KM}} · {{km .KM}} apart{{end}}
+        </span>
+      </header>
+      <ul class="stand-films">
+        {{range first 6 .Films}}
+        <li>
+          {{if .IMDBID}}<a href="/movie?imdb={{.IMDBID}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}
+          {{if .Year}}<span class="stand-year">{{.Year}}</span>{{end}}
+        </li>
+        {{end}}
+      </ul>
+      {{if gt (len .Films) 6}}<p class="stand-more">and {{sub (len .Films) 6}} more</p>{{end}}
+    </article>
+    {{end}}
+  </section>
+  {{end}}
+
+</main>
+</body>
+</html>
