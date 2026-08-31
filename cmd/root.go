@@ -46,6 +46,12 @@ Flags:
 Environment:
   CINATLAS_TMDB_KEY   TMDB API key, required for data commands
   CINATLAS_DDTD_KEY   DoesTheDogDie API key, enables fit content checks (serve)
+  CINATLAS_ANTHROPIC_KEY    Anthropic key for the mood enhancer (serve). Billed to
+                            whoever holds it, on every mood search, with no
+                            per-visitor key. Requires CINATLAS_ENHANCER_MODEL.
+  CINATLAS_ENHANCER_MODEL   Model the enhancer calls. Required alongside the key:
+                            there is no default, so nothing picks a price tier
+                            for you.
   CINATLAS_JSON       Set to 1 or true to output JSON by default
   CINATLAS_PRETTY     Set to 1 or true to indent JSON output
   CINATLAS_REGION     Default country for watch availability (default "US")

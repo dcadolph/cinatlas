@@ -42,11 +42,26 @@ func runServe(ctx context.Context, args []string) int {
 		fmt.Fprintln(os.Stderr, "cinatlas serve:", err)
 		return CodeError
 	}
-	if key := os.Getenv("CINATLAS_ANTHROPIC_KEY"); key != "" {
-		enhancer := enhance.New(key, os.Getenv("CINATLAS_ENHANCER_MODEL"), log)
+	// The mood enhancer bills whoever holds the key, and serve has no per-visitor
+	// key, so on a public deployment that is the operator on every search. Both
+	// values are required rather than defaulted: naming a model here would pick a
+	// price tier on the key holder's behalf, and a model id in source goes stale
+	// on the vendor's release schedule. A key with no model is a misconfiguration
+	// worth saying out loud, since the lexicon answers either way.
+	key, model := os.Getenv("CINATLAS_ANTHROPIC_KEY"), os.Getenv("CINATLAS_ENHANCER_MODEL")
+	switch {
+	case key == "":
+		log.Info("CINATLAS_ANTHROPIC_KEY not set: mood queries answered by the lexicon alone")
+	case model == "":
+		log.Warn("CINATLAS_ANTHROPIC_KEY set without CINATLAS_ENHANCER_MODEL: " +
+			"mood enhancer disabled, set the model you want billed for")
+	default:
+		enhancer := enhance.New(key, model, log)
 		server.SetEnhancer(enhancer)
 		server.SetSinEnhancer(enhancer.Sin())
-		log.Info("mood enhancer enabled")
+		log.Warn("mood enhancer enabled: every mood search on this instance bills "+
+			"the configured key, with no per-visitor key and no spend cap",
+			"model", model)
 	}
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {

@@ -18,9 +18,6 @@ import (
 	"github.com/dcadolph/cinatlas/internal/taste"
 )
 
-// DefaultModel is the model used when none is configured.
-const DefaultModel = "claude-opus-4-8"
-
 // maxTokens caps the model's response. The reply is one small tool call, so a
 // modest ceiling is plenty.
 const maxTokens = 1024
@@ -40,18 +37,25 @@ type Client struct {
 	log *slog.Logger
 }
 
-// New returns a Claude enhancer for the given API key. An empty model falls
-// back to DefaultModel. It panics on an empty key or nil logger, which are
-// developer errors, since callers gate construction on a configured key.
+// New returns a Claude enhancer for the given API key and model.
+//
+// There is deliberately no default model. A model id baked into the source goes
+// stale on the vendor's release schedule rather than ours, and the one that
+// rots first is the expensive one, since a default picked for quality names the
+// top tier. Naming it here would also pick a price on behalf of whoever holds
+// the key. The caller configures both, or the enhancer does not run.
+//
+// It panics on an empty key, model, or logger, which are developer errors,
+// since callers gate construction on configured values.
 func New(apiKey, model string, log *slog.Logger) *Client {
 	if apiKey == "" {
 		panic("enhance.New: api key required")
 	}
+	if model == "" {
+		panic("enhance.New: model required")
+	}
 	if log == nil {
 		panic("enhance.New: logger required")
-	}
-	if model == "" {
-		model = DefaultModel
 	}
 	return &Client{
 		api:    anthropic.NewClient(option.WithAPIKey(apiKey)),
