@@ -64,12 +64,6 @@ type Server struct {
 	finder *fitfind.Finder
 	// sin runs the adults-only discovery lens.
 	sin *sin.Finder
-	// enhancer refines mood queries beyond the lexicon, nil when no model is
-	// wired; the lexicon then answers on its own.
-	enhancer taste.Enhancer
-	// sinEnhancer refines sin-mode queries without sanitizing them, nil when
-	// no model is wired.
-	sinEnhancer taste.Enhancer
 	// tmpl holds the parsed page templates.
 	tmpl *template.Template
 	// log receives request diagnostics.
@@ -111,18 +105,6 @@ func New(client *tmdb.HTTPClient, locator locate.Atlas, triggers ddd.TriggerSour
 		tmpl:     tmpl,
 		log:      log,
 	}, nil
-}
-
-// SetEnhancer wires an optional mood-query enhancer. Passing nil leaves the
-// lexicon to answer on its own.
-func (s *Server) SetEnhancer(e taste.Enhancer) {
-	s.enhancer = e
-}
-
-// SetSinEnhancer wires an optional sin-mode query enhancer. Passing nil
-// leaves the lexicon and anchor vocabulary to answer on their own.
-func (s *Server) SetSinEnhancer(e taste.Enhancer) {
-	s.sinEnhancer = e
 }
 
 // formatRuntime renders minutes as "1h 38m".
@@ -575,15 +557,13 @@ type findData struct {
 	// Searched reports that a query ran, distinguishing an empty box from a
 	// query that found nothing.
 	Searched bool
-	// Enhanced reports that a model refined the read beyond the lexicon.
-	Enhanced bool
 }
 
 // maxFindResults caps the mood-search shelf.
 const maxFindResults = 24
 
 // handleFind answers a plain-language mood with discovered films. It reads the
-// query into an intent with the lexicon, lets an enhancer refine it when one
+// query into an intent with the lexicon
 // is wired, resolves theme keywords to ids, and runs a TMDB discovery.
 func (s *Server) handleFind(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -599,14 +579,6 @@ func (s *Server) handleFind(w http.ResponseWriter, r *http.Request) {
 	castIDs, castNames, mood := s.castFilter(ctx, query)
 
 	intent := taste.Parse(mood)
-	if s.enhancer != nil {
-		if refined, err := s.enhancer.Enhance(ctx, mood, intent); err != nil {
-			s.log.Error("mood enhance failed", "query", mood, "err", err)
-		} else {
-			intent = refined
-			data.Enhanced = true
-		}
-	}
 	data.Chips = castChips(castNames, intent.Labels())
 
 	movies, err := s.discover(ctx, intent, castIDs)

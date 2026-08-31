@@ -2,11 +2,10 @@
 // Someone types "a feel-good movie with animals that go on an adventure" and
 // gets back the genres, keyword themes, era, and quality floor that describe
 // it, ready to hand to TMDB's discover endpoint. The lexicon does this with no
-// model behind it; an optional Enhancer refines the read when one is wired.
+// model behind it, and no network call: the mapping is a hand-built vocabulary.
 package taste
 
 import (
-	"context"
 	"sort"
 	"strconv"
 	"strings"
@@ -218,77 +217,6 @@ func era(year int) string {
 	return strconv.Itoa(year)
 }
 
-// Enhancer refines a lexicon Intent from the raw query, typically by asking a
-// model to read phrasing the vocabulary missed. Implementations must be safe
-// to call with any query and should return the input Intent unchanged when
-// they have nothing to add.
-type Enhancer interface {
-	// Enhance returns a possibly-refined Intent for the query.
-	Enhance(ctx context.Context, query string, base Intent) (Intent, error)
-}
-
-// AIReading is a model's structured read of a mood query, in display terms.
-// Genres carry names rather than ids so the model works in vocabulary it knows;
-// MergeAI resolves them.
-type AIReading struct {
-	// Genres are display genre names the film should match.
-	Genres []string
-	// ExcludeGenres are display genre names to filter out.
-	ExcludeGenres []string
-	// Keywords are theme terms to resolve to TMDB keyword ids.
-	Keywords []string
-	// MinRating is the lowest acceptable vote average, zero for any.
-	MinRating float64
-	// MinVotes is the lowest acceptable vote count, zero for any.
-	MinVotes int
-	// YearFrom bounds the earliest release year, zero for no bound.
-	YearFrom int
-	// YearTo bounds the latest release year, zero for no bound.
-	YearTo int
-	// Sort is a friendly ordering: popularity, rating, or recent.
-	Sort string
-}
-
-// GenreNames returns the display genre names the lexicon recognizes, sorted, so
-// an enhancer can offer them to a model as the allowed set.
-func GenreNames() []string {
-	names := make([]string, 0, len(genreNames))
-	for _, name := range genreNames {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
-}
-
-// MergeAI folds a model's reading into the lexicon Intent. A model that named
-// genres replaces the lexicon's genre guess outright, since it reads nuance the
-// vocabulary cannot; everything else combines conservatively so the model only
-// ever adds signal. The result is renormalized and ready to query.
-func (base Intent) MergeAI(r AIReading) Intent {
-	out := base
-	if genres := genreIDs(r.Genres); len(genres) > 0 {
-		out.Genres = genres
-	}
-	out.ExcludeGenres = append(out.ExcludeGenres, genreIDs(r.ExcludeGenres)...)
-	out.Keywords = append(out.Keywords, r.Keywords...)
-	if r.MinRating > out.MinRating {
-		out.MinRating = r.MinRating
-	}
-	if r.MinVotes > out.MinVotes {
-		out.MinVotes = r.MinVotes
-	}
-	if r.YearFrom != 0 {
-		out.YearFrom = r.YearFrom
-	}
-	if r.YearTo != 0 {
-		out.YearTo = r.YearTo
-	}
-	if sort := aiSort(r.Sort); sort != "" {
-		out.Sort = sort
-	}
-	return normalize(out)
-}
-
 // genreIDs maps display genre names to ids, dropping names it does not know.
 func genreIDs(names []string) []int {
 	var ids []int
@@ -323,14 +251,6 @@ func aiSort(word string) string {
 	default:
 		return ""
 	}
-}
-
-// EnhancerFunc adapts a function to the Enhancer interface.
-type EnhancerFunc func(ctx context.Context, query string, base Intent) (Intent, error)
-
-// Enhance calls the underlying function.
-func (f EnhancerFunc) Enhance(ctx context.Context, query string, base Intent) (Intent, error) {
-	return f(ctx, query, base)
 }
 
 // Parse reads a mood query into an Intent using the lexicon alone. It always

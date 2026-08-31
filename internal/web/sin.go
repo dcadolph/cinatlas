@@ -47,8 +47,6 @@ type sinData struct {
 	// Searched reports that a query ran, distinguishing the landing view from
 	// a search that found nothing.
 	Searched bool
-	// Enhanced reports that a model refined the read.
-	Enhanced bool
 	// Error is a human-readable failure to show instead of results.
 	Error string
 }
@@ -109,21 +107,13 @@ func (s *Server) handleSin(w http.ResponseWriter, r *http.Request) {
 	s.render(w, http.StatusOK, "sin.html", data)
 }
 
-// sinQuery reads a free-text sin mood into a runnable query. The lexicon and
-// the sin enhancer shape genres, era, and quality; every anchor tag joins the
+// sinQuery reads a free-text sin mood into a runnable query. The lexicon shapes
+// genres, era, and quality; every anchor tag joins the
 // keyword OR so selection always requires a sexual-theme tag; and the score
 // gate relaxes to rank-only when the mood named its own themes, so an
 // asked-for subject is never culled for running cool.
 func (s *Server) sinQuery(ctx context.Context, data *sinData) sin.Query {
 	intent := taste.Parse(data.Query)
-	if s.sinEnhancer != nil {
-		if refined, err := s.sinEnhancer.Enhance(ctx, data.Query, intent); err != nil {
-			s.log.Error("sin enhance failed", "query", data.Query, "err", err)
-		} else {
-			intent = refined
-			data.Enhanced = true
-		}
-	}
 	minScore := sin.DefaultMinScore
 	if len(intent.Keywords) > 0 {
 		minScore = 0

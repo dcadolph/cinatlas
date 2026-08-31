@@ -70,64 +70,6 @@ func TestParseExcludesDropFromGenres(t *testing.T) {
 	}
 }
 
-func TestMergeAI(t *testing.T) {
-	t.Parallel()
-	// An explicit family request reads as the Family genre, which skews childish
-	// when the viewer meant something warmer.
-	base := Parse("a wholesome family movie")
-	if !slices.Contains(base.Genres, genreFamily) {
-		t.Fatalf("expected lexicon to include Family, got %v", base.Genres)
-	}
-
-	// The model reads it as warm adult drama and comedy, no Family.
-	got := base.MergeAI(AIReading{
-		Genres:   []string{"Drama", "Comedy"},
-		Keywords: []string{"cozy"},
-		Sort:     "rating",
-	})
-
-	// AI genres replace the lexicon's, dropping Family.
-	if slices.Contains(got.Genres, genreFamily) {
-		t.Errorf("Family should be gone after AI override, got %v", got.Genres)
-	}
-	if !slices.Contains(got.Genres, genreDrama) {
-		t.Errorf("Drama missing after merge, got %v", got.Genres)
-	}
-	// Keywords union keeps lexicon themes and adds the model's.
-	if !slices.Contains(got.Keywords, "cozy") {
-		t.Errorf("cozy keyword missing, got %v", got.Keywords)
-	}
-	if got.Sort != sortRated {
-		t.Errorf("sort = %q, want %q", got.Sort, sortRated)
-	}
-}
-
-func TestMergeAIEmptyGenresKeepsBase(t *testing.T) {
-	t.Parallel()
-	base := Parse("a funny movie")
-	got := base.MergeAI(AIReading{Keywords: []string{"slapstick"}})
-	if !slices.Contains(got.Genres, genreComedy) {
-		t.Errorf("base Comedy dropped when AI named no genres, got %v", got.Genres)
-	}
-	if !slices.Contains(got.Keywords, "slapstick") {
-		t.Errorf("AI keyword missing, got %v", got.Keywords)
-	}
-}
-
-func TestGenreNames(t *testing.T) {
-	t.Parallel()
-	names := GenreNames()
-	if len(names) != len(genreNames) {
-		t.Errorf("got %d names, want %d", len(names), len(genreNames))
-	}
-	if !slices.Contains(names, "Comedy") {
-		t.Errorf("Comedy missing from %v", names)
-	}
-	if !slices.IsSorted(names) {
-		t.Errorf("names not sorted: %v", names)
-	}
-}
-
 func TestGenreIDByName(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

@@ -62,11 +62,6 @@
 
   {{if .Searched}}
   <section class="find-results">
-    {{if .Enhanced}}
-    <div class="find-read">
-      <span class="chip chip-ai">AI refined</span>
-    </div>
-    {{end}}
     {{if .Results}}
     <section class="search-section">
       <h2>{{if .PersonName}}The sinful filmography{{else if .ActiveLabel}}{{.ActiveLabel}}{{else}}Ranked by heat{{end}} <span class="count">{{len .Results}}</span></h2>

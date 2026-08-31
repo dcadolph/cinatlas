@@ -1110,11 +1110,6 @@ a.shelf-card:hover .shelf-art {
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
-.chip-ai {
-  color: #7ad0ff;
-  border-color: rgba(122, 208, 255, 0.45);
-  background: rgba(122, 208, 255, 0.10);
-}
 .find-empty {
   text-align: center;
   color: var(--dim);
