@@ -25,6 +25,7 @@ Usage:
 Commands:
   where    Where a movie was filmed
   at       Movies filmed at a place
+  doubles  Places this place has stood in for (--played-by to flip it)
   cast     Who is in a movie
   watch    Where a movie is streaming right now
   films    What else a person was in or directed

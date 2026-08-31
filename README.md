@@ -11,6 +11,7 @@ to coordinates and link straight to Google Maps and Google Earth.
 ## What it answers
 
 - Where a movie was filmed, on a map.
+- Which places a place has stood in for, and which places have stood in for it.
 - Who is in a movie, and who directed it.
 - Where a movie is streaming right now, and which services you already pay for.
 - What else a person was in or directed.
@@ -56,6 +57,8 @@ export CINATLAS_SERVICES="Netflix, Max, Amazon Prime"
 ```
 cinatlas where "No Country for Old Men"
 cinatlas at "Monument Valley"
+cinatlas doubles Vancouver
+cinatlas doubles --played-by "New York City"
 cinatlas cast Heat
 cinatlas watch Dune --services "Max, Prime"
 cinatlas films "Denis Villeneuve"
@@ -66,6 +69,14 @@ cinatlas serve
 `at` searches the other direction: name a place, get the films with recorded
 locations there. Coverage mirrors Wikidata, so film hubs are rich and small
 towns can be empty.
+
+`doubles` reports where a place has pretended to be somewhere else, ranked by
+how many films made the swap, with the distance between the two. Vancouver has
+played New York twenty times over. `--played-by` flips the question and lists
+who has stood in for the place you named instead, which is how you find that
+New York is most often played by Los Angeles. Only films whose filming location
+and narrative setting disagree are counted, so a film shot where it is set
+never appears.
 
 `watch` reports where a title streams now, split into what a subscription
 already covers and what costs extra to rent or buy. Set `--region` (default

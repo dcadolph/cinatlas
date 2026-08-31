@@ -18,6 +18,8 @@ func Execute(ctx context.Context, args []string) int {
 		return runWhere(ctx, rest)
 	case "at":
 		return runAt(ctx, rest)
+	case "doubles":
+		return runDoubles(ctx, rest)
 	case "cast":
 		return runCast(ctx, rest)
 	case "watch":
